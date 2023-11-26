@@ -142,49 +142,57 @@ int* get_fat_chain(int start_index) {
 }
 
 DirectoryEntry* get_entry_from_name(const char *filename) {
-    int* root_chain = get_fat_chain(1);
-    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
-        if (!root_chain[i]) {
-            break;
-        }
-        DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
-        int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-        if (listEntries){
-            for (int j = 0; j < max_entries; j++) {
-                DirectoryEntry* entry = listEntries[j];
-                // Update timestamp to current system time if it exists
-                if (entry && entry->name && strcmp(entry->name, filename) == 0) {
-                    return entry;
+    int i = 0;
+    int start_block = FAT_TABLE[1];
+    int next_block = start_block;
+    // Iterate through all the root blocks
+    while (next_block != 0XFFFF) {
+        { // Check if file exists in current block (go through current root block's entries)
+            int block_to_check = next_block;
+            DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
+            int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+            if (listEntries){
+                for (int j = 0; j < max_entries; j++) {
+                    DirectoryEntry* entry = listEntries[j];
+                    // Update timestamp to current system time if it exists
+                    if (entry && entry->name && strcmp(entry->name, filename) == 0) {
+                        return entry;
+                    }
                 }
             }
         }
+        next_block = FAT_TABLE[next_block];
+        i++;
     }
-    free(root_chain);
 
     return NULL;
 }
 
 int add_entry_to_root(DirectoryEntry* entry) {
-    int* root_chain = get_fat_chain(1);
-
-    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
-        if (!root_chain[i]) {
-            break;
-        }
-        DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
-        int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-        if (listEntries){
-            for (int j = 0; j < max_entries; j++) {
-                if (!listEntries[j]) {
-                    listEntries[j] = entry;
-                    return 0;
-                }
+    int i = 0;
+    int start_block = FAT_TABLE[1];
+    int next_block = start_block;
+    // Iterate through all the root blocks until we find final one
+    while (next_block != 0XFFFF) {
+        next_block = FAT_TABLE[next_block];
+        i++;
+    }
+    
+    // Check if there is space in the last root block
+    int block_to_check = next_block;
+    DirectoryEntry** listEntries = FAT_DATA[block_to_check];
+    int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+    if (listEntries){
+        for (int j = 0; j < max_entries; j++) {
+            DirectoryEntry* entry = listEntries[j];
+            // Update timestamp to current system time if it exists
+            if (!entry) {
+                listEntries[j] = entry;
+                return 0;
             }
         }
     }
-
-    free(root_chain);
-
+    
     return -1;
 }
 
@@ -222,4 +230,31 @@ int touch(const char *filename) {
         perror("Error: no empty entries in root directory");
         return -1;
     }
+}
+
+int mv(const char *source, const char *dest) {
+    // TODO: add function to validate name
+
+    // See if file currently exists by iterating through root directory
+    DirectoryEntry* entry = get_entry_from_name(source);
+    if (!entry) {
+        perror("Error: source file does not exist");
+        return -1;
+    }
+
+    // Rename file if it does exist
+    strcpy(entry->name, dest);
+    entry->mtime = time(NULL);
+    return 0;
+}
+
+int rm(const char *filename) {
+    // See if file currently exists by iterating through root directory
+    DirectoryEntry* entry = get_entry_from_name(filename);
+    if (!entry) {
+        perror("Error: source file does not exist");
+        return -1;
+    }
+
+
 }
