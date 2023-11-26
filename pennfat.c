@@ -47,22 +47,22 @@ void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config) {
         exit(1);
     }
 
-    uint16_t *fat = (uint16_t *)calloc(BLOCKS_IN_FAT, 2); //Todo: is calloc right?
-    if (!fat) {
-        perror("Failed to allocate FAT");
+    // Mmap for FAT table region
+    FAT_TABLE = mmap(NULL, FAT_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
+    if (FAT_TABLE == MAP_FAILED) {
+        perror("Error mmapping the directory entries");
         close(fs_fd);
         exit(1);
     }
 
-    // Write FAT to the file system file
-    if (write(fs_fd, fat, FAT_SIZE) != FAT_SIZE) {
-        perror("Failed to write FAT to file system image");
-        free(fat);
-        close(fs_fd);
-        exit(1);
+    // Initialize the FAT_TABLE
+    FAT_TABLE[0] = (blocks_in_fat << 8) | block_size_config; //MSB = blocks_in_fat, LSB = block_size_config
+    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
+        DirectoryEntry *entry = malloc(sizeof(DirectoryEntry));
+        entry->firstBlock = 0;
+        FAT_TABLE[i] = entry;
     }
 
-    free(fat);
     close(fs_fd);
 }
 
@@ -74,20 +74,13 @@ void mount(const char *fs_name) {
         exit(1);
     }
 
-    // TODO Imeplement ///////////////////////
-
-    // Mmap for whole fat and data region in one call
-    FAT_MAP = mmap(NULL, FAT_SIZE+DATA_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
-    if (FAT_MAP == MAP_FAILED) {
+    // Mmap for data region
+    FAT_DATA = mmap(NULL, DATA_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, FAT_SIZE);
+    if (FAT_DATA == MAP_FAILED) {
         perror("Error mapping file system");
         close(fs_fd);
         exit(1);
     }
-
-    // Malloc data entry struct
-    // Stores previous and next block pointers, index within fat
-    // Malloc structs for root directory and first entry
-    ROOT = malloc(sizeof(DirectoryEntry));
 
     close(fs_fd);
 }
@@ -101,19 +94,23 @@ void umount(const char *fs_name) {
     }
 
     // Free directory entries
-    free(ROOT);
+    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
+        DirectoryEntry *entry = FAT_TABLE[i];
+        free(entry->name);
+        free(entry);
+    }
 
     // Unmap the memory-mapped region
-    if (munmap(FAT_MAP, FAT_SIZE) == -1) {
-        perror("Error unmapping file system");
+    if (munmap(FAT_TABLE, FAT_SIZE) == -1) {
+        perror("Error unmapping file system - table");
         close(fs_fd);
         exit(1);
     }
-
-    // TODO: how to keep track of root and first entry in order to free them??
-    // Free dynamically allocated memory
-    // free(root);
-    // free(first_entry);
+    if (munmap(FAT_DATA, FAT_SIZE) == -1) {
+        perror("Error unmapping file system - data");
+        close(fs_fd);
+        exit(1);
+    }
 
     close(fs_fd);
 }

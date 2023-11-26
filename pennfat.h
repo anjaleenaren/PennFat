@@ -6,7 +6,8 @@
 #define MAX_FILES 256 // Adjust as necessary for your file system
 
 int BLOCKS_IN_FAT, FAT_SIZE, NUM_FAT_ENTRIES, DATA_REGION_SIZE;
-uint16_t *FAT_MAP;
+uint16_t *FAT_TABLE;
+uint16_t *FAT_DATA;
 DirectoryEntry* ROOT;
 
 // Directory entry structure
