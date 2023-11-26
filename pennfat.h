@@ -5,6 +5,10 @@
 #define MAX_FILENAME_LENGTH 32
 #define MAX_FILES 256 // Adjust as necessary for your file system
 
+int BLOCKS_IN_FAT, FAT_SIZE, NUM_FAT_ENTRIES, DATA_REGION_SIZE;
+uint16_t *FAT_MAP;
+DirectoryEntry* ROOT;
+
 // Directory entry structure
 typedef struct {
     char name[MAX_FILENAME_LENGTH]; // null-terminated file name
