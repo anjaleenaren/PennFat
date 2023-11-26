@@ -110,6 +110,8 @@ void umount(const char *fs_name) {
             }
         }
     }
+    // 3. Free root_chain
+    free(root_chain);
 
     // Unmap the memory-mapped region
     if (munmap(FAT_TABLE, TABLE_REGION_SIZE) == -1) {
@@ -152,27 +154,47 @@ int touch(const char *filename) {
         perror("Error: filename cannot start with ', /, \\, or :'");
         return -1;
     }
-    // See if file currently exists by iterating through FAT_TABLE
-    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
-        DirectoryEntry *entry = FAT_TABLE[i];
-        // Update timestamp to current system time if it exists
-        if (entry->size > 0 && strcmp(entry->name, filename) == 0) {
-            entry->mtime = time(NULL);
-            return 0;
+    // See if file currently exists by iterating through root directory
+    int* root_chain = get_fat_chain(1);
+    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
+        if (!root_chain[i]) {
+            break;
+        }
+        DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
+        int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+        if (listEntries){
+            for (int j = 0; j < max_entries; j++) {
+                DirectoryEntry* entry = listEntries[j];
+                // Update timestamp to current system time if it exists
+                if (entry && entry->name && strcmp(entry->name, filename) == 0) {
+                    entry->mtime = time(NULL);
+                    return 0;
+                }
+            }
         }
     }
     // Create file if it does not exist
-    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
-        DirectoryEntry *entry = FAT_TABLE[i];
-        // Create file if entry is empty
-        if (entry->name == NULL || entry->name[0] == NULL ||entry->name[0] == '\0') {
-            strcpy(entry->name, filename);
-            entry->size = 0;
-            entry->firstBlock = NULL; // firstBlock is undefined (null) when size = 0
-            entry->type = 1; // TODO: is how do we set type
-            entry->perm = 7; // TODO: is how do we set perm
-            entry->mtime = time(NULL); // set time to now TODO: is this correct funciton call?
-            return 0;
+    DirectoryEntry *entry = malloc(sizeof(DirectoryEntry));
+    strcpy(entry->name, filename);
+    entry->size = 0;
+    entry->firstBlock = NULL; // firstBlock is undefined (null) when size = 0
+    entry->type = 1; // TODO: is how do we set type
+    entry->perm = 7; // TODO: is how do we set perm
+    entry->mtime = time(NULL); // set time to now TODO: is this correct funciton call?
+    // Save pointer at the end of root entries block
+    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
+        if (!root_chain[i]) {
+            break;
+        }
+        DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
+        int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+        if (listEntries){
+            for (int j = 0; j < max_entries; j++) {
+                if (!listEntries[j]) {
+                    listEntries[j] = entry;
+                    return 0;
+                }
+            }
         }
     }
     // If we get here, there are no empty entries
