@@ -59,7 +59,7 @@ void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config) {
     FAT_TABLE[0] = (blocks_in_fat << 8) | block_size_config; //MSB = blocks_in_fat, LSB = block_size_config
     for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
         DirectoryEntry *entry = malloc(sizeof(DirectoryEntry));
-        entry->firstBlock = 0;
+        entry->size = 0;
         FAT_TABLE[i] = entry;
     }
 
@@ -113,4 +113,45 @@ void umount(const char *fs_name) {
     }
 
     close(fs_fd);
+}
+
+int touch(const char *filename) {
+    if (strlen(filename) > MAX_FILENAME_LENGTH) {
+        perror("Error: filename too long");
+        return -1;
+    }
+    if (filename[0] == '\0') {
+        perror("Error: filename cannot be empty");
+        return -1;
+    }
+    if (filename[0] == '.' || filename[0] == '/' || filename[0] == '\\' || filename[0] == ':') {
+        perror("Error: filename cannot start with ', /, \\, or :'");
+        return -1;
+    }
+    // See if file currently exists by iterating through FAT_TABLE
+    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
+        DirectoryEntry *entry = FAT_TABLE[i];
+        // Update timestamp to current system time if it exists
+        if (entry->size > 0 && strcmp(entry->name, filename) == 0) {
+            entry->mtime = time(NULL);
+            return 0;
+        }
+    }
+    // Create file if it does not exist
+    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
+        DirectoryEntry *entry = FAT_TABLE[i];
+        // Create file if entry is empty
+        if (entry->name == NULL || entry->name[0] == NULL ||entry->name[0] == '\0') {
+            strcpy(entry->name, filename);
+            entry->size = 0;
+            entry->firstBlock = NULL; // firstBlock is undefined (null) when size = 0
+            entry->type = 1; // TODO: is how do we set type
+            entry->perm = 7; // TODO: is how do we set perm
+            entry->mtime = time(NULL); // set time to now TODO: is this correct funciton call?
+            return 0;
+        }
+    }
+    // If we get here, there are no empty entries
+    perror("Error: no empty entries in FAT_TABLE");
+    return 1;
 }
