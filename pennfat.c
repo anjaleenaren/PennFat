@@ -16,29 +16,29 @@ void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config) {
         exit(1);
     }
 
-    int block_size;
     switch(block_size_config) {
         case 0:
-            block_size = 256;
+            BLOCK_SIZE = 256;
             break;
         case 1:
-            block_size = 512;
+            BLOCK_SIZE = 512;
             break;
         case 2:
-            block_size = 1024;
+            BLOCK_SIZE = 1024;
             break;
         case 3:
-            block_size = 2048;
+            BLOCK_SIZE = 2048;
             break;
         default:
-            block_size = 4096;
+            BLOCK_SIZE = 4096;
             break;
     }
 
     // Calculate FAT and file system size
-    FAT_SIZE = block_size * blocks_in_fat;
-    NUM_FAT_ENTRIES = (block_size * blocks_in_fat) / 2;
-    DATA_REGION_SIZE = block_size * (NUM_FAT_ENTRIES - 1);
+    FAT_SIZE = BLOCK_SIZE * blocks_in_fat;
+    NUM_FAT_ENTRIES = (BLOCK_SIZE * blocks_in_fat) / 2;
+    TABLE_REGION_SIZE = sizeof(uint16_t) * NUM_FAT_ENTRIES;
+    DATA_REGION_SIZE = BLOCK_SIZE * (NUM_FAT_ENTRIES - 1);
 
     // Set the file system size
     if (ftruncate(fs_fd, FAT_SIZE) == -1) {
@@ -48,7 +48,7 @@ void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config) {
     }
 
     // Mmap for FAT table region
-    FAT_TABLE = mmap(NULL, FAT_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
+    FAT_TABLE = mmap(NULL, TABLE_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
     if (FAT_TABLE == MAP_FAILED) {
         perror("Error mmapping the directory entries");
         close(fs_fd);
@@ -58,9 +58,7 @@ void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config) {
     // Initialize the FAT_TABLE
     FAT_TABLE[0] = (blocks_in_fat << 8) | block_size_config; //MSB = blocks_in_fat, LSB = block_size_config
     for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
-        DirectoryEntry *entry = malloc(sizeof(DirectoryEntry));
-        entry->size = 0;
-        FAT_TABLE[i] = entry;
+        FAT_TABLE[i] = 0;
     }
 
     close(fs_fd);
@@ -75,7 +73,7 @@ void mount(const char *fs_name) {
     }
 
     // Mmap for data region
-    FAT_DATA = mmap(NULL, DATA_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, FAT_SIZE);
+    FAT_DATA = mmap(NULL, DATA_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, TABLE_REGION_SIZE);
     if (FAT_DATA == MAP_FAILED) {
         perror("Error mapping file system");
         close(fs_fd);
@@ -93,26 +91,52 @@ void umount(const char *fs_name) {
         exit(1);
     }
 
-    // Free directory entries
-    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
-        DirectoryEntry *entry = FAT_TABLE[i];
-        free(entry->name);
-        free(entry);
+    // Free directory entries TODO
+    // 1. Start at fat table index 1, and follow pointers to get location of all data blocks
+    int* root_chain = get_fat_chain(1);
+    // 2. Free all data blocks
+    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
+        if (!root_chain[i]) {
+            break;
+        }
+        DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
+        int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+        if (listEntries){
+            for (int j = 0; j < max_entries; j++) {
+                DirectoryEntry* entry = listEntries[j];
+                if (entry) {
+                    free(entry);
+                }
+            }
+        }
     }
 
     // Unmap the memory-mapped region
-    if (munmap(FAT_TABLE, FAT_SIZE) == -1) {
+    if (munmap(FAT_TABLE, TABLE_REGION_SIZE) == -1) {
         perror("Error unmapping file system - table");
         close(fs_fd);
         exit(1);
     }
-    if (munmap(FAT_DATA, FAT_SIZE) == -1) {
+    if (munmap(FAT_DATA, DATA_REGION_SIZE) == -1) {
         perror("Error unmapping file system - data");
         close(fs_fd);
         exit(1);
     }
 
     close(fs_fd);
+}
+
+int* get_fat_chain(int start_index) {
+    int* fat_chain = malloc(sizeof(int) * NUM_FAT_ENTRIES);
+    int i = 0;
+    int start_block = FAT_TABLE[start_index];
+    int next_block = start_block;
+    while (next_block != 0XFFFF) {
+        fat_chain[i] = next_block;
+        next_block = FAT_TABLE[next_block];
+        i++;
+    }
+    return fat_chain;
 }
 
 int touch(const char *filename) {

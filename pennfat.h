@@ -5,7 +5,7 @@
 #define MAX_FILENAME_LENGTH 32
 #define MAX_FILES 256 // Adjust as necessary for your file system
 
-int BLOCKS_IN_FAT, FAT_SIZE, NUM_FAT_ENTRIES, DATA_REGION_SIZE;
+int BLOCKS_IN_FAT, BLOCK_SIZE, FAT_SIZE, NUM_FAT_ENTRIES, TABLE_REGION_SIZE, DATA_REGION_SIZE;
 uint16_t *FAT_TABLE;
 uint16_t *FAT_DATA;
 DirectoryEntry* ROOT;
@@ -161,3 +161,11 @@ int f_lseek(int fd, int offset, int whence);
  * @param filename Name of the file to list or NULL for listing all files.
  */
 void f_ls(const char *filename);
+
+// Helper functions
+/**
+ * Mallocs an array of all the block numbers in the FAT chain of a file.
+ * @param start_index Index in fat_table to begin search.
+ * @return array of all the block numbers in the FAT chain of a file. Need to free.
+ */
+int* get_fat_chain(int start_index);
