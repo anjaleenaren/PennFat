@@ -120,3 +120,50 @@ void mount(const char *fs_name) {
     // TODO: Load FAT and directory structure into memory
 
 }
+
+void mount(const char *fs_name) {
+    // Open the file system file
+    int fs_fd = open(fs_name, O_RDWR);
+    if (fs_fd == -1) {
+        perror("Error opening file system image");
+        exit(1);
+    }
+
+    // Memory map the file system
+    uint16_t *fat = mmap(NULL, fat_size, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
+    if (fat == MAP_FAILED) {
+        perror("Error mapping file system");
+        close(fs_fd);
+        exit(1);
+    }
+
+    // TODO: Load FAT and directory structure into memory
+    DirectoryEntry* root = malloc(sizeof(DirectoryEntry));
+    DirectoryEntry* first_entry = malloc(sizeof(DirectoryEntry));
+
+    free(fat);
+    close(fs_fd);
+}
+
+void umount(const char *fs_name) {
+    // Open the file system file
+    int fs_fd = open(fs_name, O_RDWR);
+    if (fs_fd == -1) {
+        perror("Error opening file system image");
+        exit(1);
+    }
+
+    // Unmap the memory-mapped region
+    if (munmap(fat, fat_size) == -1) {
+        perror("Error unmapping file system");
+        close(fs_fd);
+        exit(1);
+    }
+
+    // TODO: how to keep track of root and first entry in order to free them??
+    // Free dynamically allocated memory
+    // free(root);
+    // free(first_entry);
+
+    close(fs_fd);
+}
