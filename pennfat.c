@@ -141,20 +141,7 @@ int* get_fat_chain(int start_index) {
     return fat_chain;
 }
 
-int touch(const char *filename) {
-    if (strlen(filename) > MAX_FILENAME_LENGTH) {
-        perror("Error: filename too long");
-        return -1;
-    }
-    if (filename[0] == '\0') {
-        perror("Error: filename cannot be empty");
-        return -1;
-    }
-    if (filename[0] == '.' || filename[0] == '/' || filename[0] == '\\' || filename[0] == ':') {
-        perror("Error: filename cannot start with ', /, \\, or :'");
-        return -1;
-    }
-    // See if file currently exists by iterating through root directory
+DirectoryEntry* get_entry_from_name(const char *filename) {
     int* root_chain = get_fat_chain(1);
     for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
         if (!root_chain[i]) {
@@ -167,21 +154,19 @@ int touch(const char *filename) {
                 DirectoryEntry* entry = listEntries[j];
                 // Update timestamp to current system time if it exists
                 if (entry && entry->name && strcmp(entry->name, filename) == 0) {
-                    entry->mtime = time(NULL);
-                    return 0;
+                    return entry;
                 }
             }
         }
     }
-    // Create file if it does not exist
-    DirectoryEntry *entry = malloc(sizeof(DirectoryEntry));
-    strcpy(entry->name, filename);
-    entry->size = 0;
-    entry->firstBlock = NULL; // firstBlock is undefined (null) when size = 0
-    entry->type = 1; // TODO: is how do we set type
-    entry->perm = 7; // TODO: is how do we set perm
-    entry->mtime = time(NULL); // set time to now TODO: is this correct funciton call?
-    // Save pointer at the end of root entries block
+    free(root_chain);
+
+    return NULL;
+}
+
+int add_entry_to_root(DirectoryEntry* entry) {
+    int* root_chain = get_fat_chain(1);
+
     for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
         if (!root_chain[i]) {
             break;
@@ -197,7 +182,44 @@ int touch(const char *filename) {
             }
         }
     }
-    // If we get here, there are no empty entries
-    perror("Error: no empty entries in FAT_TABLE");
-    return 1;
+
+    free(root_chain);
+
+    return -1;
+}
+
+int touch(const char *filename) {
+    if (strlen(filename) > MAX_FILENAME_LENGTH) {
+        perror("Error: filename too long");
+        return -1;
+    }
+    if (filename[0] == '\0') {
+        perror("Error: filename cannot be empty");
+        return -1;
+    }
+    if (filename[0] == '.' || filename[0] == '/' || filename[0] == '\\' || filename[0] == ':') {
+        perror("Error: filename cannot start with ', /, \\, or :'");
+        return -1;
+    }
+    // See if file currently exists by iterating through root directory
+    DirectoryEntry* entry = get_entry_from_name(filename);
+    if (entry) {
+        entry->mtime = time(NULL);
+        return 0;
+    }
+
+    // Create file if it does not exist
+    DirectoryEntry *entry = malloc(sizeof(DirectoryEntry));
+    strcpy(entry->name, filename);
+    entry->size = 0;
+    entry->firstBlock = NULL; // firstBlock is undefined (null) when size = 0
+    entry->type = 1; // TODO: is how do we set type
+    entry->perm = 7; // TODO: is how do we set perm
+    entry->mtime = time(NULL); // set time to now TODO: is this correct funciton call?
+    
+    // Save pointer at the end of root entries block
+    if (add_entry_to_root(entry) == -1) {
+        perror("Error: no empty entries in root directory");
+        return -1;
+    }
 }

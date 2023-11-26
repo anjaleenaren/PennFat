@@ -169,3 +169,17 @@ void f_ls(const char *filename);
  * @return array of all the block numbers in the FAT chain of a file. Need to free.
  */
 int* get_fat_chain(int start_index);
+
+/**
+ * Gets the directory entry of a file from its name.
+ * @param filename Name of the file to get the entry of.
+ * @return Directory entry of the file.
+ */
+DirectoryEntry* get_entry_from_name(const char *filename);
+
+/**
+ * Adds a directory entry to the root directory.
+ * @param entry Directory entry to add.
+ * @return 0 on success, negative on error.
+ */
+int add_entry_to_root(DirectoryEntry* entry);
