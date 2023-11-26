@@ -59,6 +59,54 @@ void mount(const char *fs_name);
 void umount();
 
 /**
+ * Creates a file if it does not exist, or updates its timestamp to the current system time.
+ * @param filename Name of the file to touch.
+ * @return 0 on success, negative on error.
+ */
+int touch(const char *filename);
+
+/**
+ * Renames a file from SOURCE to DEST.
+ * @param source Name of the source file.
+ * @param dest Name of the destination file.
+ * @return 0 on success, negative on error.
+ */
+int mv(const char *source, const char *dest);
+
+/**
+ * Removes a file.
+ * @param filename Name of the file to remove.
+ * @return 0 on success, negative on error.
+ */
+int rm(const char *filename);
+
+/**
+ * Concatenates files and prints them to stdout, or overwrites/creates OUTPUT_FILE.
+ * @param files Array of file names to concatenate.
+ * @param num_files Number of files in the array.
+ * @param output_file Name of the output file, NULL if output is to stdout.
+ * @param append Flag to indicate appending to the file instead of overwriting.
+ * @return 0 on success, negative on error.
+ */
+int cat(const char **files, int num_files, const char *output_file, int append);
+
+/**
+ * Copies a file from SOURCE to DEST.
+ * @param source Name of the source file.
+ * @param dest Name of the destination file.
+ * @param host_to_fs Flag indicating if the copy is from the host OS to the file system.
+ * @return 0 on success, negative on error.
+ */
+int cp(const char *source, const char *dest, int host_to_fs);
+
+/**
+ * Lists all files in the current directory or details of a specific file.
+ * @param filename Name of the file to list, NULL for listing all files.
+ * @return 0 on success, negative on error.
+ */
+int ls(const char *filename);
+
+/**
  * Opens a file in the filesystem.
  * @param fname Name of the file to open. 
  * -> allowed name: https://www.ibm.com/docs/en/zos/3.1.0?topic=locales-posix-portable-file-name-character-set
