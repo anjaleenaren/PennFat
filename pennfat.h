@@ -184,7 +184,7 @@ void strcat_data(char* data, int start_index)
  * @param filename Name of the file to get the entry of.
  * @return Directory entry of the file.
  */
-DirectoryEntry* get_entry_from_name(const char *filename);
+DirectoryEntry* get_entry_from_root(const char *filename);
 
 /**
  * Adds a directory entry to the root directory.

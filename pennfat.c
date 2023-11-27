@@ -165,7 +165,7 @@ int find_first_free_block() {
     return -1;
 }
 
-DirectoryEntry* get_entry_from_name(const char *filename) {
+DirectoryEntry* get_entry_from_root(const char *filename) {
     int i = 0;
     int start_block = FAT_TABLE[1];
     int next_block = start_block;
@@ -192,7 +192,7 @@ DirectoryEntry* get_entry_from_name(const char *filename) {
     return NULL;
 }
 
-DirectoryEntry* delete_entry_from_name(const char *filename) {
+DirectoryEntry* delete_entry_from_root(const char *filename) {
     int i = 0;
     int start_block = FAT_TABLE[1];
     int next_block = start_block;
@@ -272,7 +272,7 @@ int touch(const char *filename) {
         return -1;
     }
     // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_name(filename);
+    DirectoryEntry* entry = get_entry_from_root(filename);
     if (entry) {
         entry->mtime = time(NULL);
         return 0;
@@ -298,7 +298,7 @@ int mv(const char *source, const char *dest) {
     // TODO: add function to validate name
 
     // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_name(source);
+    DirectoryEntry* entry = get_entry_from_root(source);
     if (!entry) {
         perror("Error: source file does not exist");
         return -1;
@@ -312,7 +312,7 @@ int mv(const char *source, const char *dest) {
 
 int rm(const char *filename) {
     // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_name(filename);
+    DirectoryEntry* entry = get_entry_from_root(filename);
     if (!entry) {
         perror("Error: source file does not exist");
         return -1;
@@ -327,7 +327,7 @@ int rm(const char *filename) {
     }
 
     // Delete entry from root directory
-    delete_entry_from_name(filename);
+    delete_entry_from_root(filename);
 }
 
 // TODO: parse args in shell
@@ -345,9 +345,9 @@ int cp(const char *source, const char *dest, int s_host, int d_host) {
 int cp_helper(const char *source, const char *dest) {
 
     // both in fat
-    DirectoryEntry* entry = get_entry_from_name(dest);
+    DirectoryEntry* entry = get_entry_from_root(dest);
     if (entry) {
-        delete_entry_from_name(dest);
+        delete_entry_from_root(dest);
     }
     // create new file with name
     touch(dest);
@@ -355,7 +355,7 @@ int cp_helper(const char *source, const char *dest) {
     // find source file
     // open file
     free(entry);
-    DirectoryEntry* entry = get_entry_from_name(source);
+    DirectoryEntry* entry = get_entry_from_root(source);
 
     int* chain = get_fat_chain(entry->firstBlock);
 
@@ -379,9 +379,9 @@ int cp_from_h(const char *source, const char *dest) {
     }
 
     // check if file exists in fat, remove if it does
-    DirectoryEntry* entry = get_entry_from_name(dest);
+    DirectoryEntry* entry = get_entry_from_root(dest);
     if (entry) {
-        delete_entry_from_name(dest);
+        delete_entry_from_root(dest);
     }
     // create new file with name
     touch(dest);
@@ -398,7 +398,7 @@ int cp_to_h(const char *source, const char *dest) {
     }
 
     // get directory entry for file
-    DirectoryEntry* entry = get_entry_from_name(source);
+    DirectoryEntry* entry = get_entry_from_root(source);
     if (!entry) {
         perror("Error: source file does not exist");
         return -1;
@@ -469,7 +469,7 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
         // Concatenate files
         for (int i = 0; i < num_files; i++) {
             // Get directory entry for file
-            DirectoryEntry* entry = get_entry_from_name(files[i]);
+            DirectoryEntry* entry = get_entry_from_root(files[i]);
             if (!entry) {
                 perror("Error: source file does not exist");
                 return -1;
@@ -489,14 +489,14 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
     // Step 2: Output data
     if (output_file) {
         // Write to file
-        DirectoryEntry* entry = get_entry_from_name(output_file);
+        DirectoryEntry* entry = get_entry_from_root(output_file);
         if (!entry) {
             // Create file if it does not exist
             if (touch(output_file) < 0) {
                 perror("cat - Error creating file using touch");
                 return -1;
             }
-            entry = get_entry_from_name(output_file);
+            entry = get_entry_from_root(output_file);
             if (!entry) {
                 perror("cat - Error creating file using touch (entry still null)");
                 return -1;
