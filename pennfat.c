@@ -83,7 +83,8 @@ void mount(const char *fs_name) {
     close(fs_fd);
 }
 
-void umount(const char *fs_name) {
+// TODO: global var with fs_name
+void umount() {
     // Open the file system file
     int fs_fd = open(fs_name, O_RDWR);
     if (fs_fd == -1) {
@@ -339,14 +340,75 @@ int rm(const char *filename) {
     delete_entry_from_name(filename);
 }
 
+void append(char* data, int block_no) {
+
+    int last_block = block_no;
+    int next_block = last_block;
+    while (next_block != 0XFFFF) {
+        last_block = next_block;
+        next_block = FAT_TABLE[next_block];
+    }
+    // Iterate through data block by block (each block is block_size bytes)
+    char* cur_data_block;
+    int offset = 0;
+    while (offset < sizeof(char) * strlen(data)) {
+        cur_data_block = strndup(data[offset], BLOCK_SIZE);
+        if (!cur_data_block) {
+            perror("cat - Error copying data block with strndup");
+            return -1;
+        }
+        offset += sizeof(char) * strlen(cur_data_block);
+        // Add new block to FAT chain
+        int new_final_block = find_first_free_block();
+        FAT_TABLE[last_block] = new_final_block;
+        FAT_TABLE[new_final_block] = 0XFFFF;
+        last_block = new_final_block;
+        // Write data to new block
+        FAT_DATA[new_final_block] = cur_data_block; 
+        free(cur_data_block);
+    }
+}
+
+char* read_file_to_string(int fd) {
+    // Seek to the end of the file to determine its size
+    off_t file_size = lseek(fd, 0, SEEK_END);
+    if (file_size == -1) {
+        perror("Error seeking to end of file");
+        return NULL;
+    }
+    // Allocate a buffer to hold the file content
+    char* buffer = (char*)malloc(file_size + 1);  // +1 for null terminator
+    if (buffer == NULL) {
+        perror("Error allocating memory for file content");
+        return NULL;
+    }
+    // Seek back to the beginning of the file
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("Error seeking to beginning of file");
+        free(buffer);
+        return NULL;
+    }
+    // Read the entire file content into the buffer
+    ssize_t bytes_read = read(fd, buffer, file_size);
+    if (bytes_read == -1) {
+        perror("Error reading file content");
+        free(buffer);
+        return NULL;
+    }
+    // Null-terminate the string
+    buffer[bytes_read] = '\0';
+    return buffer;
+}
+
+
 // TODO: parse args in shell
 int cp(const char *source, const char *dest, int s_host, int d_host) {
-    // if d_host, cp_to_h
-    if (d_host) {
+    
+    if (d_host) { // dest is in host
         cp_to_h(source, dest);
-    } else if (s_host) {
+    } else if (s_host) { // source is in host
         cp_from_h(source, dest);
-    } else {
+    } else { // both are in FAT
         cp_helper(source, dest);
     }
 }
@@ -354,8 +416,8 @@ int cp(const char *source, const char *dest, int s_host, int d_host) {
 int cp_helper(const char *source, const char *dest) {
 
     // both in fat
-    DirectoryEntry* entry = get_entry_from_name(dest);
-    if (entry) {
+    DirectoryEntry* d_entry = get_entry_from_name(dest);
+    if (d_entry) {
         delete_entry_from_name(dest);
     }
     // create new file with name
@@ -363,7 +425,6 @@ int cp_helper(const char *source, const char *dest) {
 
     // find source file
     // open file
-    free(entry);
     DirectoryEntry* entry = get_entry_from_name(source);
 
     int* chain = get_fat_chain(entry->firstBlock);
@@ -374,6 +435,7 @@ int cp_helper(const char *source, const char *dest) {
         }
         char* txt = FAT_DATA[chain[i]];
         // TODO: write to file
+        append(txt, d_entry);
     }
 }
 
@@ -394,7 +456,10 @@ int cp_from_h(const char *source, const char *dest) {
     }
     // create new file with name
     touch(dest);
-    // TODO: write to file  
+    // TODO: update directory entry with the first block of file
+    char* txt = read_file_to_string(h_fd);
+    int i = find_first_free_block();
+    append(txt, i);
 }
 
 // copying from fat to host
