@@ -331,6 +331,7 @@ int rm(const char *filename) {
     delete_entry_from_name(filename);
 }
 
+// adds data to end of file, given a block number in the file
 void append(char* data, int block_no) {
 
     int last_block = block_no;
@@ -425,8 +426,8 @@ int cp_helper(const char *source, const char *dest) {
             break;
         }
         char* txt = FAT_DATA[chain[i]];
-        // TODO: write to file
-        append(txt, d_entry);
+        // write to file
+        append(txt, d_entry->firstBlock);
     }
 }
 
