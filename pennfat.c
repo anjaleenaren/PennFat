@@ -141,6 +141,21 @@ int* get_fat_chain(int start_index) {
     return fat_chain;
 }
 
+void strcat_data(char* data, int start_index) {
+    int i = 0;
+    int start_block = FAT_TABLE[start_index];
+    int next_block = start_block;
+    while (next_block != 0xFFFF && next_block != 0) {
+        char* cur_data = FAT_DATA[next_block];
+        if (cur_data) {
+            strcat(data, cur_data);
+        }
+        
+        next_block = FAT_TABLE[next_block];
+        i++;
+    }
+}
+
 int find_first_free_block() {
     for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
         if (FAT_TABLE[i] == 0) {
@@ -212,7 +227,6 @@ DirectoryEntry* delete_entry_from_name(const char *filename) {
         }
         
     }
-
     return NULL;
 }
 
@@ -417,6 +431,39 @@ void f_ls(const char *filename) {
         }
     }
     close(fs_fd);
+}
+
+int cat(const char **files, int num_files, const char *output_file, int append) {
+    // Note should support:
+    // cat FILE ... [ -w OUTPUT_FILE ]: Concatenates the files and prints them to stdout by default, or overwrites OUTPUT_FILE. If OUTPUT_FILE does not exist, it will be created. (Same for OUTPUT_FILE in the commands below.)
+    // cat FILE ... [ -a OUTPUT_FILE ]: Concatenates the files and prints them to stdout by default, or appends to OUTPUT_FILE.
+    // cat -w OUTPUT_FILE: (set num_files to 0) Reads from the terminal and overwrites OUTPUT_FILE.
+    // cat -a OUTPUT_FILE: (set num_files to 0) Reads from the terminal and appends to OUTPUT_FILE.
+    
+    // Step 1: Get input data (as a string)
+    char* data = malloc(sizeof(char) * BLOCK_SIZE * NUM_FAT_ENTRIES);
+    if (num_files > 0) {
+        // Concatenate files
+        for (int i = 0; i < num_files; i++) {
+            // Get directory entry for file
+            DirectoryEntry* entry = get_entry_from_name(files[i]);
+            if (!entry) {
+                perror("Error: source file does not exist");
+                return -1;
+            }
+            // Get new file data and append it to current data
+            strcat_data(data, entry->firstBlock);
+        }
+    } else {
+        // Read from terminal
+        int num_bytes = read(STDIN_FILENO, data, sizeof(char) * BLOCK_SIZE * NUM_FAT_ENTRIES);
+        if (num_bytes == -1) {
+            perror("Error reading from terminal");
+            return -1;
+        }
+    }
+
+    // Step 2: Output data
 }
 
 void f_chmod();

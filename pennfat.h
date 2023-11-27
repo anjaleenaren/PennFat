@@ -173,6 +173,13 @@ void f_chmod();
 int* get_fat_chain(int start_index);
 
 /**
+ * Gets the data (stored as string) from a file and concatante it to data.
+ * @param data String to concatenate to.
+ * @param start_index Index in fat_table to begin search.
+ */
+void strcat_data(char* data, int start_index)
+
+/**
  * Gets the directory entry of a file from its name.
  * @param filename Name of the file to get the entry of.
  * @return Directory entry of the file.
