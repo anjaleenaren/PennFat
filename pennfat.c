@@ -171,7 +171,7 @@ DirectoryEntry* get_entry_from_name(const char *filename) {
     int start_block = FAT_TABLE[1];
     int next_block = start_block;
     // Iterate through all the root blocks
-    while (next_block != NULL) {
+    while (next_block != 0XFFFF && next_block != 0) {
         { // Check if file exists in current block (go through current root block's entries)
             int block_to_check = next_block;
             DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
@@ -186,12 +186,8 @@ DirectoryEntry* get_entry_from_name(const char *filename) {
                 }
             }
         }
-        if (next_block == 0XFFFF || next_block == 0) {
-            next_block == NULL;
-        } else {
-            next_block = FAT_TABLE[next_block];
-            i++;
-        }
+        next_block = FAT_TABLE[next_block];
+        i++;
     }
 
     return NULL;
@@ -203,7 +199,7 @@ DirectoryEntry* delete_entry_from_name(const char *filename) {
     int next_block = start_block;
 
     // Iterate through all the root blocks
-    while (next_block != NULL) {
+    while (next_block != 0XFFFF && next_block != 0) {
         { // Check if file exists in current block (go through current root block's entries)
             int block_to_check = next_block;
             DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
@@ -220,13 +216,8 @@ DirectoryEntry* delete_entry_from_name(const char *filename) {
                 }
             }
         }
-        if (next_block == 0XFFFF || next_block == 0) {
-            next_block == NULL;
-        } else {
-            next_block = FAT_TABLE[next_block];
-            i++;
-        }
-        
+        next_block = FAT_TABLE[next_block];
+        i++;
     }
     return NULL;
 }
@@ -617,5 +608,4 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
             return -1;
         }
     }
-
 }
