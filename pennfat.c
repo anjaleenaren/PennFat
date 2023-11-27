@@ -338,18 +338,49 @@ int cp(const char *source, const char *dest, int s_host, int d_host) {
 }
 
 int cp_helper(const char *source, const char *dest) {
+
     // both in fat
+    DirectoryEntry* entry = get_entry_from_name(dest)
+    if (entry) {
+        delete_entry_from_name(dest)
+    }
+    // create new file with name
+    touch(dest);
+
+    // find source file
+    // open file
+    free(entry)
+    DirectoryEntry* entry = get_entry_from_name(source);
+
+    int* chain = get_fat_chain(entry->firstBlock);
+
+    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
+        if (!chain[i]) {
+            break;
+        }
+        char* txt = FAT_DATA[chain[i]];
+        // TODO: write to file
+    }
 }
 
 int cp_from_h(const char *source, const char *dest) {
     // copy from host file
 
     // open host file to read
-    int h_fd = open(source, O_RONLY);
+    int h_fd = open(source, O_RDONLY);
     if (h_fd == -1) {
         perror("Error opening file");
         exit(1);
     }
+
+    // check if file exists in fat, remove if it does
+    DirectoryEntry* entry = get_entry_from_name(dest)
+    if (entry) {
+        delete_entry_from_name(dest)
+    }
+    // create new file with name
+    touch(dest);
+    // TODO: write to file  
 }
 
 // copying from fat to host
@@ -382,7 +413,7 @@ int cp_to_h(const char *source, const char *dest) {
         char* txt = FAT_DATA[chain[i]];
         write(h_fd, txt, sizeof(char) * strlen(txt))
     }
-
+    free(chain);
     close(fs_fd);
     close(h_fd);
 }
@@ -416,6 +447,7 @@ void f_ls(const char *filename) {
             }
         }
     }
+    free(root_chain);
     close(fs_fd);
 }
 
