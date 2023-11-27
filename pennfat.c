@@ -355,8 +355,8 @@ int rm(const char *filename) {
 }
 
 // adds data to end of file, given a block number in the file
-void append(char* data, int block_no) {
-
+int append_to_penn_fat(char* data, int block_no) {
+    // Find last block in file (assumes delete_from_penn_fat removes all old blocks)
     int last_block = block_no;
     int next_block = last_block;
     while (next_block != 0XFFFF) {
@@ -382,6 +382,7 @@ void append(char* data, int block_no) {
         FAT_DATA[new_final_block] = cur_data_block; 
         free(cur_data_block);
     }
+    return 0;
 }
 
 char* read_file_to_string(int fd) {
@@ -451,7 +452,7 @@ int cp_helper(const char *source, const char *dest) {
         }
         char* txt = FAT_DATA[chain[i]];
         // write to file
-        append(txt, d_entry->firstBlock);
+        append_to_penn_fat(txt, d_entry->firstBlock);
     }
 }
 
@@ -475,7 +476,7 @@ int cp_from_h(const char *source, const char *dest) {
     // TODO: update directory entry with the first block of file
     char* txt = read_file_to_string(h_fd);
     int i = find_first_free_block();
-    append(txt, i);
+    append_to_penn_fat(txt, i);
 }
 
 // copying from fat to host
@@ -639,33 +640,8 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
                 return -1;
             }
         }
-
-        // Find last block in file (assumes delete_from_penn_fat removes all old blocks)
-        int last_block = entry->firstBlock;
-        int next_block = last_block;
-        while (next_block != 0XFFFF) {
-            last_block = next_block;
-            next_block = FAT_TABLE[next_block];
-        }
-        // Iterate through data block by block (each block is block_size bytes)
-        char* cur_data_block;
-        int offset = 0;
-        while (offset < sizeof(char) * strlen(data)) {
-            cur_data_block = strndup(data[offset], BLOCK_SIZE);
-            if (!cur_data_block) {
-                perror("cat - Error copying data block with strndup");
-                return -1;
-            }
-            offset += sizeof(char) * strlen(cur_data_block);
-            // Add new block to FAT chain
-            int new_final_block = find_first_free_block();
-            FAT_TABLE[last_block] = new_final_block;
-            FAT_TABLE[new_final_block] = 0XFFFF;
-            last_block = new_final_block;
-            // Write data to new block
-            FAT_DATA[new_final_block] = cur_data_block; 
-            free(cur_data_block);
-        }
+        entry = get_entry_from_root(output_file); // Update entry value
+        append_to_penn_fat(data, entry->firstBlock);
     } else {
         // Write to stdout
         int num_bytes = write(STDOUT_FILENO, data, sizeof(char) * strlen(data));
@@ -737,3 +713,66 @@ int f_read(int fd, int n, char *buf) {
     }
     return n;
 }
+
+int f_write(int fd, const char *str, int n) {
+    // Check if file descriptor is valid
+    if (fd < 0 || fd >= NUM_FAT_ENTRIES) {
+        perror("Error: invalid file descriptor");
+        return -1;
+    }
+    // Check if file is open
+    if (!FDT[fd]) {
+        perror("Error: file is not open");
+        return -1;
+    }
+    // Check if file is open for writing
+    if (FDT[fd]->mode != F_WRITE && FDT[fd]->mode != F_APPEND) {
+        perror("Error: file is not open for writin or appending");
+        return -1;
+    }
+    // Get directory entry for file and write
+    DirectoryEntry* entry = get_entry_from_root(FDT[fd]->name);
+    char* data = malloc(sizeof(char) * BLOCK_SIZE * NUM_FAT_ENTRIES);
+    if (FDT[fd]->mode == F_APPEND) {
+        if (!entry) {
+            // Create file if it does not exist
+            if (touch(FDT[fd]->name) < 0) {
+                perror("f_write - Error creating file using touch");
+                return -1;
+            }
+            entry = get_entry_from_root(FDT[fd]->name);
+            if (!entry) {
+                perror("f_write - Error creating file using touch (entry still null)");
+                return -1;
+            }
+        }
+        // Get file data
+        strcat_data(data, entry->firstBlock);
+        // Append new data to file data
+        strcat(data, str);
+    } else {
+        if (entry) {
+            // Delete old file from penn fat if it exists and recreate it
+            if (delete_from_penn_fat(FDT[fd]->name) < 0) {
+                perror("f_write - Error deleting file cannot write properly, exiting");
+                return -1;
+            }
+        }
+        if (touch(FDT[fd]->name) < 0) {
+            perror("f_write - Error creating file using touch");
+            return -1;
+        }
+        // Copy str into data
+        strncpy(data, str, n);
+    }
+    // Write data to file
+    entry = get_entry_from_root(FDT[fd]->name);
+    if (!entry) {
+        perror("f_write - Error finding file entry before append");
+        return -1;
+    }
+    append_to_penn_fat(data, entry->firstBlock);
+    free(data);
+    return n;
+}
+

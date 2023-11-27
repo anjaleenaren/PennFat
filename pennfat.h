@@ -213,3 +213,11 @@ int find_first_free_block();
  * @return 0 on success, negative on error.
  */
 int delete_from_penn_fat(const char *filename);
+
+/**
+ * Appends to a file in PennFat Table that starts at block_no (needs to have a DirectoryEntry already).
+ * @param data string to append to file.
+ * @param block_no block number to append to (typically entry->firstBlock)
+ * @return 0 on success, negative on error.
+ */
+void append_to_penn_fat(char* data, int block_no);
