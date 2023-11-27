@@ -344,7 +344,7 @@ int cp(const char *source, const char *dest, int s_host, int d_host) {
     // if d_host, cp_to_h
     if (d_host) {
         cp_to_h(source, dest);
-    } elif (s_host) {
+    } else if (s_host) {
         cp_from_h(source, dest);
     } else {
         cp_helper(source, dest);
@@ -354,16 +354,16 @@ int cp(const char *source, const char *dest, int s_host, int d_host) {
 int cp_helper(const char *source, const char *dest) {
 
     // both in fat
-    DirectoryEntry* entry = get_entry_from_name(dest)
+    DirectoryEntry* entry = get_entry_from_name(dest);
     if (entry) {
-        delete_entry_from_name(dest)
+        delete_entry_from_name(dest);
     }
     // create new file with name
     touch(dest);
 
     // find source file
     // open file
-    free(entry)
+    free(entry);
     DirectoryEntry* entry = get_entry_from_name(source);
 
     int* chain = get_fat_chain(entry->firstBlock);
@@ -388,9 +388,9 @@ int cp_from_h(const char *source, const char *dest) {
     }
 
     // check if file exists in fat, remove if it does
-    DirectoryEntry* entry = get_entry_from_name(dest)
+    DirectoryEntry* entry = get_entry_from_name(dest);
     if (entry) {
-        delete_entry_from_name(dest)
+        delete_entry_from_name(dest);
     }
     // create new file with name
     touch(dest);
@@ -425,7 +425,7 @@ int cp_to_h(const char *source, const char *dest) {
         }
         // copy block into host file
         char* txt = FAT_DATA[chain[i]];
-        write(h_fd, txt, sizeof(char) * strlen(txt))
+        write(h_fd, txt, sizeof(char) * strlen(txt));
     }
     free(chain);
     close(fs_fd);
@@ -467,8 +467,8 @@ void f_ls(const char *filename) {
 
 int cat(const char **files, int num_files, const char *output_file, int append) {
     // Note should support:
-    // cat FILE ... [ -w OUTPUT_FILE ]: Concatenates the files and prints them to stdout by default, or overwrites OUTPUT_FILE. If OUTPUT_FILE does not exist, it will be created. (Same for OUTPUT_FILE in the commands below.)
-    // cat FILE ... [ -a OUTPUT_FILE ]: Concatenates the files and prints them to stdout by default, or appends to OUTPUT_FILE.
+    // cat FILE ... [ -w OUTPUT_FILE ]: (set output_file to null if stdout) Concatenates the files and prints them to stdout by default, or overwrites OUTPUT_FILE. If OUTPUT_FILE does not exist, it will be created. (Same for OUTPUT_FILE in the commands below.)
+    // cat FILE ... [ -a OUTPUT_FILE ]: (set output_file to null if stdout) Concatenates the files and prints them to stdout by default, or appends to OUTPUT_FILE.
     // cat -w OUTPUT_FILE: (set num_files to 0) Reads from the terminal and overwrites OUTPUT_FILE.
     // cat -a OUTPUT_FILE: (set num_files to 0) Reads from the terminal and appends to OUTPUT_FILE.
     
@@ -496,6 +496,61 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
     }
 
     // Step 2: Output data
-}
+    if (output_file) {
+        // Write to file
+        DirectoryEntry* entry = get_entry_from_name(output_file);
+        if (!entry) {
+            // Create file if it does not exist
+            if (touch(output_file) < 0) {
+                perror("cat - Error creating file using touch");
+                return -1;
+            }
+            entry = get_entry_from_name(output_file);
+            if (!entry) {
+                perror("cat - Error creating file using touch (entry still null)");
+                return -1;
+            }
+        }
 
-void f_chmod();
+        if (!append && entry) { // Delete old file from penn fat if it exists and we are trying to overwrite
+            if (delete_from_penn_fat(output_file) < 0) {
+                perror("cat - Error deleting file cannot write properly, exiting");
+                return -1;
+            }
+        }
+        // Find last block in file (assumes delete_from_penn_fat removes all old blocks)
+        int last_block = entry->firstBlock;
+        int next_block = last_block;
+        while (next_block != 0XFFFF) {
+            last_block = next_block;
+            next_block = FAT_TABLE[next_block];
+        }
+        // Iterate through data block by block (each block is block_size bytes)
+        char* cur_data_block;
+        int offset = 0;
+        while (offset < sizeof(char) * strlen(data)) {
+            cur_data_block = strndup(data[offset], BLOCK_SIZE);
+            if (!cur_data_block) {
+                perror("cat - Error copying data block with strndup");
+                return -1;
+            }
+            offset += sizeof(char) * strlen(cur_data_block);
+            // Add new block to FAT chain
+            int new_final_block = find_first_free_block();
+            FAT_TABLE[last_block] = new_final_block;
+            FAT_TABLE[new_final_block] = 0XFFFF;
+            last_block = new_final_block;
+            // Write data to new block
+            FAT_DATA[new_final_block] = cur_data_block; 
+            free(cur_data_block);
+        }
+    } else {
+        // Write to stdout
+        int num_bytes = write(STDOUT_FILENO, data, sizeof(char) * strlen(data));
+        if (num_bytes == -1) {
+            perror("Error writing to stdout");
+            return -1;
+        }
+    }
+
+}

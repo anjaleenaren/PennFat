@@ -198,3 +198,11 @@ int add_entry_to_root(DirectoryEntry* entry);
  * @return 0 on success, negative on error.
  */
 int find_first_free_block();
+
+/**
+ * Deletes a file from PennFat Table.
+ * Finds entry for filename. Then goes through PennFat Table and deletes all the relevant pointers starting at entry->firstBlock.
+ * @param filename Name of the file to delete.
+ * @return 0 on success, negative on error.
+ */
+int delete_from_penn_fat(const char *filename);
