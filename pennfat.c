@@ -513,7 +513,40 @@ int cp_to_h(const char *source, const char *dest) {
     close(h_fd);
 }
 
-void ls(const char *filename) {
+int f_lseek(int fd, int offset, int whence) {
+
+    off_t new_position;
+
+    // TODO: Store the current position, need to keep track of position somehow
+    off_t current_position = fcb->position;
+
+    switch (whence) {
+        case F_SEEK_SET:
+            new_position = offset;
+            break;
+        case F_SEEK_CUR:
+            new_position = current_position + offset;
+            break;
+        case F_SEEK_END:
+
+
+            new_offset = lseek(fd, offset, whence);
+            if (new_offset == -1) {
+                perror("Error seeking file");
+                return -1;
+            }
+
+            printf("New file offset: %ld\n", (long)new_offset);
+            return 0;  // Success
+        default:
+            fprintf(stderr, "Invalid 'whence' parameter\n");
+            return -1;  // Error
+    }
+
+    // TODO: update file pointer position that's stored to = new_position
+}
+
+void f_ls(const char *filename) {
     // iterate through directory entries
     // print file names 
 
