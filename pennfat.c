@@ -776,3 +776,31 @@ int f_write(int fd, const char *str, int n) {
     return n;
 }
 
+int f_close(int fd) {
+    // Check if file descriptor is valid
+    if (fd < 0 || fd >= NUM_FAT_ENTRIES) {
+        perror("Error: invalid file descriptor");
+        return -1;
+    }
+    // Check if file is open
+    if (!FDT[fd]) {
+        perror("Error: file is not open");
+        return -1;
+    }
+    // Free FDT entry
+    free(FDT[fd]);
+    FDT[fd] = NULL;
+    return 0;
+}
+
+int f_unlink(const char *fname) {
+    // See if file currently exists by iterating through root directory
+    DirectoryEntry* entry = get_entry_from_root(fname);
+    if (!entry) {
+        perror("f_unlink - Error: source file does not have a directory entry");
+        return -1;
+    }
+
+    // Delete file from fat table and root directory
+    delete_from_penn_fat(fname);
+}
