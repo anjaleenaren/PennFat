@@ -48,7 +48,7 @@ void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config) {
     }
 
     // Initialize the file descriptor table (FDT)
-    FDT = malloc(sizeof(int) * NUM_FAT_ENTRIES);
+    FDT = malloc(sizeof(FDTEntry*) * NUM_FAT_ENTRIES);
 
     // Mmap for FAT table region
     FAT_TABLE = mmap(NULL, TABLE_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
@@ -580,25 +580,33 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
     if (output_file) {
         // Write to file
         DirectoryEntry* entry = get_entry_from_root(output_file);
-        if (!entry) {
-            // Create file if it does not exist
+        if (append) {
+            if (!entry) {
+                // Create file if it does not exist
+                if (touch(output_file) < 0) {
+                    perror("cat - Error creating file using touch");
+                    return -1;
+                }
+                entry = get_entry_from_root(output_file);
+                if (!entry) {
+                    perror("cat - Error creating file using touch (entry still null)");
+                    return -1;
+                }
+            }
+        } else {
+            if (entry) {
+                // Delete old file from penn fat if it exists and recreate it
+                if (delete_from_penn_fat(output_file) < 0) {
+                    perror("cat - Error deleting file cannot write properly, exiting");
+                    return -1;
+                }
+            }
             if (touch(output_file) < 0) {
                 perror("cat - Error creating file using touch");
                 return -1;
             }
-            entry = get_entry_from_root(output_file);
-            if (!entry) {
-                perror("cat - Error creating file using touch (entry still null)");
-                return -1;
-            }
         }
 
-        if (!append && entry) { // Delete old file from penn fat if it exists and we are trying to overwrite
-            if (delete_from_penn_fat(output_file) < 0) {
-                perror("cat - Error deleting file cannot write properly, exiting");
-                return -1;
-            }
-        }
         // Find last block in file (assumes delete_from_penn_fat removes all old blocks)
         int last_block = entry->firstBlock;
         int next_block = last_block;
@@ -635,4 +643,64 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
     }
 }
 
+/* F_* Function definitions */
+int f_open(const char *fname, int mode) {
+    if(strlen(fname) > MAX_FILENAME_LENGTH) {
+        perror("Error: filename too long");
+        return -1;
+    }
+    // TODO: check name meets https://www.ibm.com/docs/en/zos/3.1.0?topic=locales-posix-portable-file-name-character-set
 
+    // Get next_descriptor that's free and add entry to FDT
+    int next_descriptor = 0;
+    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
+        if (!FDT[i]) {
+            next_descriptor = i;
+            break;
+        }
+    }
+    FDTEntry* fdtEntry = malloc(sizeof(FDTEntry));
+    fdtEntry->mode = mode;
+    fdtEntry->name = fname;
+    FDT[next_descriptor] = fdtEntry;
+
+    return next_descriptor;
+}
+
+int f_read(int fd, int n, char *buf) {
+    // Check if file descriptor is valid
+    if (fd < 0 || fd >= NUM_FAT_ENTRIES) {
+        perror("Error: invalid file descriptor");
+        return -1;
+    }
+    // Check if file is open
+    if (!FDT[fd]) {
+        perror("Error: file is not open");
+        return -1;
+    }
+    // Check if file is open for reading
+    if (FDT[fd]->mode != F_READ) {
+        perror("Error: file is not open for reading");
+        return -1;
+    }
+
+    // Get directory entry for file
+    DirectoryEntry* entry = get_entry_from_root(FDT[fd]->name);
+    if (!entry) {
+        perror("Error: source file does not exist");
+        return -1;
+    }
+
+    // Get file data
+    char* data = malloc(sizeof(char) * BLOCK_SIZE * NUM_FAT_ENTRIES);
+    strcat_data(buf, entry->firstBlock);
+
+    // Copy data to buffer
+    strncpy(buf, data, n);
+    free(data);
+    // If we reach EOF return 0
+    if (strlen(buf) * sizeof(char) < n) {
+        return 0;
+    }
+    return n;
+}

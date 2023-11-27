@@ -11,7 +11,11 @@ uint16_t *FAT_DATA;
 DirectoryEntry* ROOT;
 
 // File Descriptor Table
-int* FDT;
+typedef struct {
+    char name*; // null-terminated file name (matches with DirectoryEntry)
+    int mode; // mode file is opened in
+} FDTEntry;
+FDTEntry** FDT;
 
 // Directory entry structure
 typedef struct {
