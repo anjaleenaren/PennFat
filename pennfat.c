@@ -141,12 +141,21 @@ int* get_fat_chain(int start_index) {
     return fat_chain;
 }
 
+int find_first_free_block() {
+    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
+        if (FAT_TABLE[i] == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 DirectoryEntry* get_entry_from_name(const char *filename) {
     int i = 0;
     int start_block = FAT_TABLE[1];
     int next_block = start_block;
     // Iterate through all the root blocks
-    while (next_block != 0XFFFF) {
+    while (next_block != NULL) {
         { // Check if file exists in current block (go through current root block's entries)
             int block_to_check = next_block;
             DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
@@ -161,8 +170,47 @@ DirectoryEntry* get_entry_from_name(const char *filename) {
                 }
             }
         }
-        next_block = FAT_TABLE[next_block];
-        i++;
+        if (next_block == 0XFFFF || next_block == 0) {
+            next_block == NULL;
+        } else {
+            next_block = FAT_TABLE[next_block];
+            i++;
+        }
+    }
+
+    return NULL;
+}
+
+DirectoryEntry* delete_entry_from_name(const char *filename) {
+    int i = 0;
+    int start_block = FAT_TABLE[1];
+    int next_block = start_block;
+
+    // Iterate through all the root blocks
+    while (next_block != NULL) {
+        { // Check if file exists in current block (go through current root block's entries)
+            int block_to_check = next_block;
+            DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
+            int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+            if (listEntries){
+                for (int j = 0; j < max_entries; j++) {
+                    DirectoryEntry* entry = listEntries[j];
+                    if (entry && entry->name && strcmp(entry->name, filename) == 0) {
+                        free(entry->name);
+                        listEntries[j] = NULL;
+                        return;
+                    }
+                    
+                }
+            }
+        }
+        if (next_block == 0XFFFF || next_block == 0) {
+            next_block == NULL;
+        } else {
+            next_block = FAT_TABLE[next_block];
+            i++;
+        }
+        
     }
 
     return NULL;
@@ -171,15 +219,17 @@ DirectoryEntry* get_entry_from_name(const char *filename) {
 int add_entry_to_root(DirectoryEntry* entry) {
     int i = 0;
     int start_block = FAT_TABLE[1];
+    int last_block = start_block;
     int next_block = start_block;
     // Iterate through all the root blocks until we find final one
     while (next_block != 0XFFFF) {
+        last_block = next_block;
         next_block = FAT_TABLE[next_block];
         i++;
     }
     
     // Check if there is space in the last root block
-    int block_to_check = next_block;
+    int block_to_check = last_block;
     DirectoryEntry** listEntries = FAT_DATA[block_to_check];
     int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
     if (listEntries){
@@ -192,8 +242,15 @@ int add_entry_to_root(DirectoryEntry* entry) {
             }
         }
     }
-    
-    return -1;
+
+    // If no space, add another block to the FAT chain
+    int new_final_block = find_first_free_block();
+    FAT_TABLE[last_block] = new_final_block;
+    FAT_TABLE[new_final_block] = 0XFFFF;
+    DirectoryEntry** listEntries = FAT_DATA[new_final_block];
+    listEntries[0] = entry;
+
+    return 0;
 }
 
 int touch(const char *filename) {
@@ -256,5 +313,14 @@ int rm(const char *filename) {
         return -1;
     }
 
+    // Delete file from fat table if it does exist
+    int block = entry->firstBlock;
+    while (block != 0XFFFF && block != 0) {
+        int next_block = FAT_TABLE[block];
+        FAT_TABLE[block] = 0;
+        block = next_block;
+    }
 
+    // Delete entry from root directory
+    delete_entry_from_name(filename);
 }

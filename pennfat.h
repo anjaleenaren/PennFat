@@ -183,3 +183,9 @@ DirectoryEntry* get_entry_from_name(const char *filename);
  * @return 0 on success, negative on error.
  */
 int add_entry_to_root(DirectoryEntry* entry);
+
+/**
+ * Finds first free block that we can use. (Search fat table to find first 0)
+ * @return 0 on success, negative on error.
+ */
+int find_first_free_block();
