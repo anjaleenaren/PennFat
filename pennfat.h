@@ -162,6 +162,8 @@ int f_lseek(int fd, int offset, int whence);
  */
 void f_ls(const char *filename);
 
+void f_chmod();
+
 // Helper functions
 /**
  * Mallocs an array of all the block numbers in the FAT chain of a file.

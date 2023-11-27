@@ -324,3 +324,99 @@ int rm(const char *filename) {
     // Delete entry from root directory
     delete_entry_from_name(filename);
 }
+
+// TODO: parse args in shell
+int cp(const char *source, const char *dest, int s_host, int d_host) {
+    // if d_host, cp_to_h
+    if (d_host) {
+        cp_to_h(source, dest);
+    } elif (s_host) {
+        cp_from_h(source, dest);
+    } else {
+        cp_helper(source, dest);
+    }
+}
+
+int cp_helper(const char *source, const char *dest) {
+    // both in fat
+}
+
+int cp_from_h(const char *source, const char *dest) {
+    // copy from host file
+
+    // open host file to read
+    int h_fd = open(source, O_RONLY);
+    if (h_fd == -1) {
+        perror("Error opening file");
+        exit(1);
+    }
+}
+
+// copying from fat to host
+int cp_to_h(const char *source, const char *dest) {
+    // open fat binary
+    int fs_fd = open(fs_name, O_RDWR);
+    if (fs_fd == -1) {
+        perror("Error opening file system image");
+        exit(1);
+    }
+
+    // get directory entry for file
+    DirectoryEntry* entry = get_entry_from_name(source);
+    if (!entry) {
+        perror("Error: source file does not exist");
+        return -1;
+    }
+
+    // file chain
+    int* chain = get_fat_chain(entry->firstBlock);
+
+    // open host file
+    int h_fd = open(dest, O_WRONLY);
+
+    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
+        if (!chain[i]) {
+            break;
+        }
+        // copy block into host file
+        char* txt = FAT_DATA[chain[i]];
+        write(h_fd, txt, sizeof(char) * strlen(txt))
+    }
+
+    close(fs_fd);
+    close(h_fd);
+}
+
+void f_ls(const char *filename) {
+    // iterate through directory entries
+    // print file names 
+
+    // open file
+    int fs_fd = open(fs_name, O_RDWR);
+    if (fs_fd == -1) {
+        perror("Error opening file system image");
+        exit(1);
+    }
+
+    // get root directories
+    int* root_chain = get_fat_chain(1);
+
+    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
+        if (!root_chain[i]) {
+            break;
+        }
+        DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
+        int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+        if (listEntries){
+            for (int j = 0; j < max_entries; j++) {
+                DirectoryEntry* entry = listEntries[j];
+                if (entry) {
+                    write(STDOUT_FILENO, entry->name, sizeof(char)*strlen(entry->name));
+                }
+            }
+        }
+    }
+    close(fs_fd);
+}
+
+void f_chmod();
