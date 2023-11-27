@@ -794,6 +794,15 @@ int f_close(int fd) {
 }
 
 int f_unlink(const char *fname) {
+    // Should should not be able to delete a file that is in use by another process.
+    // Should not be able to delete a file that is open - check to see if it's open
+    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
+        if (FDT[i] && strcmp(FDT[i]->name, fname) == 0) {
+            perror("f_unlink - Error: file is open");
+            return -1;
+        }
+    }
+
     // See if file currently exists by iterating through root directory
     DirectoryEntry* entry = get_entry_from_root(fname);
     if (!entry) {
