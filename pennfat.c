@@ -166,6 +166,25 @@ int find_first_free_block() {
     return -1;
 }
 
+int delete_from_penn_fat(const char *filename) {
+    // See if file currently exists by iterating through root directory
+    DirectoryEntry* entry = get_entry_from_root(filename);
+    if (!entry) {
+        perror("Error: source file does not exist");
+        return -1;
+    }
+    // Delete file from fat table if it does exist
+    int block = entry->firstBlock;
+    while (block != 0XFFFF && block != 0) {
+        int next_block = FAT_TABLE[block];
+        FAT_TABLE[block] = 0;
+        block = next_block;
+    }
+
+    // Delete entry from root directory
+    delete_entry_from_root(filename);
+}
+
 DirectoryEntry* get_entry_from_root(const char *filename) {
     int i = 0;
     int start_block = FAT_TABLE[1];
