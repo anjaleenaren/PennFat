@@ -513,7 +513,7 @@ int cp_to_h(const char *source, const char *dest) {
     close(h_fd);
 }
 
-void f_ls(const char *filename) {
+void ls(const char *filename) {
     // iterate through directory entries
     // print file names 
 
