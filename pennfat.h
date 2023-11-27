@@ -10,6 +10,9 @@ uint16_t *FAT_TABLE;
 uint16_t *FAT_DATA;
 DirectoryEntry* ROOT;
 
+// File Descriptor Table
+int* FDT;
+
 // Directory entry structure
 typedef struct {
     char name[MAX_FILENAME_LENGTH]; // null-terminated file name

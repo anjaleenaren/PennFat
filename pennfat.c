@@ -47,6 +47,9 @@ void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config) {
         exit(1);
     }
 
+    // Initialize the file descriptor table (FDT)
+    FDT = malloc(sizeof(int) * NUM_FAT_ENTRIES);
+
     // Mmap for FAT table region
     FAT_TABLE = mmap(NULL, TABLE_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
     if (FAT_TABLE == MAP_FAILED) {
@@ -173,6 +176,7 @@ int delete_from_penn_fat(const char *filename) {
         perror("Error: source file does not exist");
         return -1;
     }
+
     // Delete file from fat table if it does exist
     int block = entry->firstBlock;
     while (block != 0XFFFF && block != 0) {
@@ -630,3 +634,5 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
         }
     }
 }
+
+
