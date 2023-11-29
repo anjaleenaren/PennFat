@@ -91,7 +91,7 @@ void mount(const char *fs_name) {
 // TODO: global var with fs_name
 void umount() {
     // Open the file system file
-    int fs_fd = open(FS_NAME, O_RDWR);
+    int fs_fd = open(fs_name, O_RDWR);
     if (fs_fd == -1) {
         perror("Error opening file system image");
         exit(1);
