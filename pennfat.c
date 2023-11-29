@@ -99,26 +99,26 @@ void umount() {
 
     // Free directory entries TODO
     // 1. Start at fat table index 1, and follow pointers to get location of all data blocks
-    int* root_chain = get_fat_chain(1);
+    // int* root_chain = get_fat_chain(1);
     // 2. Free all data blocks
-    for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
-        if (!root_chain[i]) {
-            break;
-        }
-        fopen(FS_NAME, "r");
-        DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
-        int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-        if (listEntries){
-            for (int j = 0; j < max_entries; j++) {
-                DirectoryEntry* entry = listEntries[j];
-                if (entry) {
-                    free(entry);
-                }
-            }
-        }
-    }
+    // for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
+    //     if (!root_chain[i]) {
+    //         break;
+    //     }
+    //     fopen(FS_NAME, "r");
+    //     DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
+    //     int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+    //     if (listEntries){
+    //         for (int j = 0; j < max_entries; j++) {
+    //             DirectoryEntry* entry = listEntries[j];
+    //             if (entry) {
+    //                 free(entry);
+    //             }
+    //         }
+    //     }
+    // }
     // 3. Free root_chain
-    free(root_chain);
+    // free(root_chain);
 
     // Unmap the memory-mapped region
     if (munmap(FAT_TABLE, TABLE_REGION_SIZE) == -1) {
