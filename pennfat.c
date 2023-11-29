@@ -4,11 +4,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include <pennfat.h>
+#include "pennfat.h"
 
 #define MAX_FAT_ENTRIES 65534 // Maximum for FAT16
 
-void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config) {
+void mkfs(char *fs_name, int blocks_in_fat, int block_size_config) {
     BLOCKS_IN_FAT = blocks_in_fat;
     int fs_fd = open(fs_name, O_RDWR | O_CREAT, 0666);
     if (fs_fd == -1) {
@@ -91,7 +91,7 @@ void mount(const char *fs_name) {
 // TODO: global var with fs_name
 void umount() {
     // Open the file system file
-    int fs_fd = open(fs_name, O_RDWR);
+    int fs_fd = open(FS_NAME, O_RDWR);
     if (fs_fd == -1) {
         perror("Error opening file system image");
         exit(1);
@@ -105,7 +105,7 @@ void umount() {
         if (!root_chain[i]) {
             break;
         }
-        fopen(FS_NAME, "r")
+        fopen(FS_NAME, "r");
         DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
         int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
         if (listEntries){
@@ -210,7 +210,7 @@ DirectoryEntry* get_entry_from_root(const char *filename) {
         // DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
         
         for (int i = 0; i < num_entries; i++) {
-            struct DirectoryEntry read_struct;
+            DirectoryEntry read_struct;
             fread(&read_struct, sizeof(read_struct), 1, file_ptr);
             if (read_struct && read_struct->name && strcmp(read_struct->name, filename) == 0) {
                 return read_struct;
@@ -240,21 +240,21 @@ DirectoryEntry* delete_entry_from_root(const char *filename) {
     int next_block = start_block;
     FILE * file_ptr = fopen(FS_NAME, "w+");
     int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-    bool found = false;
+    int found = 0;
 
     // Iterate through all the root blocks
     while (next_block != 0XFFFF && next_block != 0) {
         // Check if file exists in current block (go through current root block's entries)
         int block_to_check = next_block;
-        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
+        lseek(FS_FD, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
         for (int i = 0; i < num_entries; i++) {
-            struct DirectoryEntry read_struct;
+            DirectoryEntry read_struct;
             fread(&read_struct, sizeof(read_struct), 1, file_ptr);
             if (read_struct && read_struct->name && strcmp(read_struct->name, filename) == 0) {
                 // overwrite with spaces
                 for (long long i = 0; i < sizeof(DirectoryEntry); ++i) {
                     fputc(' ', file_ptr);
-                    found = true;
+                    found = 1;
                 }
                 break;
             }
@@ -298,16 +298,16 @@ int add_entry_to_root(DirectoryEntry* entry) {
     
     // Check if there is space in the last root block
     int block_to_check = last_block;
-    lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
+    lseek(FS_FD, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
 
     for (int i = 0; i < num_entries; i++) {
-        struct DirectoryEntry read_struct;
+        DirectoryEntry read_struct;
         fread(&read_struct, sizeof(read_struct), 1, file_ptr);
         if (read_struct[0] == ' ') {
             // empty space found
             fwrite(&entry, sizeof(DirectoryEntry), 1, file_ptr);
             break;
-            found = true;
+            found = 1;
         }
     }
 
