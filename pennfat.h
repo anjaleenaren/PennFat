@@ -7,13 +7,13 @@
 
 int BLOCKS_IN_FAT, BLOCK_SIZE, FAT_SIZE, NUM_FAT_ENTRIES, TABLE_REGION_SIZE, DATA_REGION_SIZE;
 uint16_t *FAT_TABLE;
-char FS_NAME*;
+uint16_t *FAT_DATA;
+char* FS_NAME;
 // uint16_t *FAT_DATA;
-DirectoryEntry* ROOT;
 
 // File Descriptor Table
 typedef struct {
-    char name*; // null-terminated file name (matches with DirectoryEntry)
+    char* name; // null-terminated file name (matches with DirectoryEntry)
     int mode; // mode file is opened in
 } FDTEntry;
 FDTEntry** FDT;
@@ -36,6 +36,8 @@ typedef struct {
     char reserved[16];              // reserved for future use or extra features
 } DirectoryEntry;
 
+DirectoryEntry* ROOT;
+
 // File modes
 #define F_WRITE  1 // Write mode
 #define F_READ   2 // Read mode
@@ -53,7 +55,7 @@ typedef struct {
  * @param blocks_in_fat Number of blocks in the FAT region (ranging from 1 through 32).
  * @param block_size_config 0-4. block size will be 256, 512, 1024, 2048, or 4096 bytes depending on this value.
  */
-void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config);
+void mkfs(char *fs_name, int blocks_in_fat, int block_size_config);
 
 /**
  * Mounts the PennFAT filesystem named FS_NAME by loading its FAT into memory.
@@ -105,7 +107,9 @@ int cat(const char **files, int num_files, const char *output_file, int append);
  * @param host_to_fs Flag indicating if the copy is from the host OS to the file system.
  * @return 0 on success, negative on error.
  */
-int cp(const char *source, const char *dest, int host_to_fs);
+int cp(const char *source, const char *dest, int s_host, int d_host);
+// int cp(const char *source, const char *dest, int host_to_fs);
+
 
 /**
  * Lists all files in the current directory or details of a specific file.
@@ -185,7 +189,7 @@ int* get_fat_chain(int start_index);
  * @param data String to concatenate to.
  * @param start_index Index in fat_table to begin search.
  */
-void strcat_data(char* data, int start_index)
+void strcat_data(char* data, int start_index);
 
 /**
  * Gets the directory entry of a file from its name.
@@ -221,4 +225,4 @@ int delete_from_penn_fat(const char *filename);
  * @param block_no block number to append to (typically entry->firstBlock)
  * @return 0 on success, negative on error.
  */
-void append_to_penn_fat(char* data, int block_no);
+int append_to_penn_fat(char* data, int block_no);
