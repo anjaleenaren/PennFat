@@ -305,9 +305,9 @@ int add_entry_to_root(DirectoryEntry* entry) {
     lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
 
     for (int i = 0; i < num_entries; i++) {
-        DirectoryEntry read_struct;
+        DirectoryEntry* read_struct;
         fread(&read_struct, sizeof(read_struct), 1, file_ptr);
-        if (read_struct) { // how to check if it's ' '
+        if (read_struct->name) { // how to check if it's ' '
             // empty space found
             fwrite(&entry, sizeof(DirectoryEntry), 1, file_ptr);
             break;
@@ -375,6 +375,7 @@ int touch(const char *filename) {
         perror("Error: no empty entries in root directory");
         return -1;
     }
+    return 0;
 }
 
 int mv(const char *source, const char *dest) {
@@ -411,6 +412,7 @@ int rm(const char *filename) {
 
     // Delete entry from root directory
     delete_entry_from_root(filename);
+    return 0;
 }
 
 // adds data to end of file, given a block number in the file
@@ -488,6 +490,7 @@ int cp(const char *source, const char *dest, int s_host, int d_host) {
     } else { // both are in FAT
         cp_helper(source, dest);
     }
+    return 0;
 }
 
 int cp_helper(const char *source, const char *dest) {
@@ -518,6 +521,7 @@ int cp_helper(const char *source, const char *dest) {
         // write to file
         append_to_penn_fat(txt, d_entry->firstBlock);
     }
+    return 0;
 }
 
 int cp_from_h(const char *source, const char *dest) {
@@ -541,6 +545,7 @@ int cp_from_h(const char *source, const char *dest) {
     char* txt = read_file_to_string(h_fd);
     int i = find_first_free_block();
     append_to_penn_fat(txt, i);
+    return 0;
 }
 
 // copying from fat to host
@@ -578,6 +583,7 @@ int cp_to_h(const char *source, const char *dest) {
     free(chain);
     close(fs_fd);
     close(h_fd);
+    return 0;
 }
 
 int f_lseek(int fd, int offset, int whence) {
@@ -619,6 +625,8 @@ int f_lseek(int fd, int offset, int whence) {
     }
 
     // TODO: update file pointer position that's stored to = new_position
+
+    return 0;
 }
 
 void f_ls(const char *filename) {
@@ -736,6 +744,7 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
             return -1;
         }
     }
+    return 0;
 }
 
 /* F_* Function definitions */
@@ -898,4 +907,5 @@ int f_unlink(const char *fname) {
 
     // Delete file from fat table and root directory
     delete_from_penn_fat(fname);
+    return 0;
 }
