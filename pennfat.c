@@ -499,7 +499,7 @@ int cp_helper(const char *source, const char *dest) {
     // find source file
     // open file
     free(entry);
-    DirectoryEntry* entry = get_entry_from_name(source);
+    DirectoryEntry* entry = get_entry_from_root(source);
 
     int* chain = get_fat_chain(entry->firstBlock);
 
@@ -581,16 +581,23 @@ int f_lseek(int fd, int offset, int whence) {
 
     // TODO: Store the current position, need to keep track of position somehow
     off_t current_position = fcb->position;
+    int blocks = offset / BLOCK_SIZE;
+    int rem = offset % BLOCK_SIZE;
 
+    // find entry name
+    FDTEntry* fdtEntry = FDT[fd];
+    DirectoryEntry* entry = get_entry_from_root(fdtEntry->name);
+    int* chain = get_fat_chain(entry->firstBlock);
+    
     switch (whence) {
         case F_SEEK_SET:
-            new_position = offset;
+            new_position = TABLE_REGION_SIZE + (BLOCK_SIZE * (chain[blocks]-1)) + rem;
             break;
         case F_SEEK_CUR:
             new_position = current_position + offset;
             break;
         case F_SEEK_END:
-
+            // TODO: need to actually store the current position somewhere
 
             new_offset = lseek(fd, offset, whence);
             if (new_offset == -1) {
