@@ -33,9 +33,10 @@
 int main(int argc, char *argv[]) {
     // Initialize or mount the file system here
 
-    mkfs("test_mkfs", 1, 1);
+    mkfs("minfs", 1, 1);
+    mkfs("maxfs", 32, 4);
+    mkfs("testfs", 1, 0);
 
     return 0;
 }
-
 

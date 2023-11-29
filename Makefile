@@ -11,7 +11,7 @@
 
 # name of the program to build
 #
-PROG=pennfat
+PROG=main
 
 PROMPT='"$(PROG)> "'
 
@@ -32,7 +32,7 @@ HEADERS = $(wildcard *.h)
 .PHONY : clean
 
 $(PROG) : $(OBJS) $(HEADERS)
-	$(CC) -o $@ $(OBJS) parser.o
+	$(CC) -o $@ $(OBJS)
 
 %.o: %.c $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
