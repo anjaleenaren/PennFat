@@ -126,11 +126,11 @@ void umount() {
         close(fs_fd);
         exit(1);
     }
-    if (munmap(FAT_DATA, DATA_REGION_SIZE) == -1) {
-        perror("Error unmapping file system - data");
-        close(fs_fd);
-        exit(1);
-    }
+    // if (munmap(FAT_DATA, DATA_REGION_SIZE) == -1) {
+    //     perror("Error unmapping file system - data");
+    //     close(fs_fd);
+    //     exit(1);
+    // }
 
     close(fs_fd);
 }
@@ -149,11 +149,13 @@ int* get_fat_chain(int start_index) {
 }
 
 void strcat_data(char* data, int start_index) {
+    int fs_fd = open(FS_NAME, O_RDONLY);
     int i = 0;
     int start_block = FAT_TABLE[start_index];
     int next_block = start_block;
     while (next_block != 0xFFFF && next_block != 0) {
-        char* cur_data = FAT_DATA[next_block];
+        char* cur_data = malloc(sizeof(char)*BLOCK_SIZE);
+        read(fs_fd, cur_data, sizeof(char)*BLOCK_SIZE);
         if (cur_data) {
             strcat(data, cur_data);
         }
@@ -193,27 +195,40 @@ int delete_from_penn_fat(const char *filename) {
 }
 
 DirectoryEntry* get_entry_from_root(const char *filename) {
-    int i = 0;
     int start_block = FAT_TABLE[1];
     int next_block = start_block;
+    FILE * file_ptr = fopen(FS_NAME, "r");
+    int fs_fd = open(FS_NAME, O_RDONLY);
     // Iterate through all the root blocks
+
+    int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+
     while (next_block != 0XFFFF && next_block != 0) {
-        { // Check if file exists in current block (go through current root block's entries)
-            int block_to_check = next_block;
-            DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
-            int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-            if (listEntries){
-                for (int j = 0; j < max_entries; j++) {
-                    DirectoryEntry* entry = listEntries[j];
-                    // Update timestamp to current system time if it exists
-                    if (entry && entry->name && strcmp(entry->name, filename) == 0) {
-                        return entry;
-                    }
-                }
+        // Check if file exists in current block (go through current root block's entries)
+        int block_to_check = next_block;
+        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
+        // DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
+        
+        for (int i = 0; i < num_entries; i++) {
+            struct DirectoryEntry read_struct;
+            fread(&read_struct, sizeof(read_struct), 1, file_ptr);
+            if (read_struct && read_struct->name && strcmp(read_struct->name, filename) == 0) {
+                return read_struct;
             }
         }
+
+        // int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+        // if (listEntries){
+        //     for (int j = 0; j < max_entries; j++) {
+        //         DirectoryEntry* entry = listEntries[j];
+        //         // Update timestamp to current system time if it exists
+        //         if (entry && entry->name && strcmp(entry->name, filename) == 0) {
+        //             return entry;
+        //         }
+        //     }
+        // }
+        
         next_block = FAT_TABLE[next_block];
-        i++;
     }
 
     return NULL;
@@ -223,64 +238,101 @@ DirectoryEntry* delete_entry_from_root(const char *filename) {
     int i = 0;
     int start_block = FAT_TABLE[1];
     int next_block = start_block;
+    FILE * file_ptr = fopen(FS_NAME, "w+");
+    int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+    bool found = false;
 
     // Iterate through all the root blocks
     while (next_block != 0XFFFF && next_block != 0) {
-        { // Check if file exists in current block (go through current root block's entries)
-            int block_to_check = next_block;
-            DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
-            int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-            if (listEntries){
-                for (int j = 0; j < max_entries; j++) {
-                    DirectoryEntry* entry = listEntries[j];
-                    if (entry && entry->name && strcmp(entry->name, filename) == 0) {
-                        free(entry->name);
-                        listEntries[j] = NULL;
-                        return;
-                    }
-                    
+        // Check if file exists in current block (go through current root block's entries)
+        int block_to_check = next_block;
+        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
+        for (int i = 0; i < num_entries; i++) {
+            struct DirectoryEntry read_struct;
+            fread(&read_struct, sizeof(read_struct), 1, file_ptr);
+            if (read_struct && read_struct->name && strcmp(read_struct->name, filename) == 0) {
+                // overwrite with spaces
+                for (long long i = 0; i < sizeof(DirectoryEntry); ++i) {
+                    fputc(' ', file_ptr);
+                    found = true;
                 }
+                break;
             }
         }
+        if (found) {
+            break;
+        }
+
+        // DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
+        // int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+        // if (listEntries){
+        //     for (int j = 0; j < max_entries; j++) {
+        //         DirectoryEntry* entry = listEntries[j];
+        //         if (entry && entry->name && strcmp(entry->name, filename) == 0) {
+        //             free(entry->name);
+        //             listEntries[j] = NULL;
+        //             return;
+        //         }
+                
+        //     }
+        // }
+        
         next_block = FAT_TABLE[next_block];
-        i++;
     }
     return NULL;
 }
 
 int add_entry_to_root(DirectoryEntry* entry) {
-    int i = 0;
     int start_block = FAT_TABLE[1];
     int last_block = start_block;
     int next_block = start_block;
+    FILE * file_ptr = fopen(FS_NAME, "w+");
+    int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+    bool found = false;
+
     // Iterate through all the root blocks until we find final one
     while (next_block != 0XFFFF) {
         last_block = next_block;
         next_block = FAT_TABLE[next_block];
-        i++;
     }
     
     // Check if there is space in the last root block
     int block_to_check = last_block;
-    DirectoryEntry** listEntries = FAT_DATA[block_to_check];
-    int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-    if (listEntries){
-        for (int j = 0; j < max_entries; j++) {
-            DirectoryEntry* entry = listEntries[j];
-            // Update timestamp to current system time if it exists
-            if (!entry) {
-                listEntries[j] = entry;
-                return 0;
-            }
+    lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
+
+    for (int i = 0; i < num_entries; i++) {
+        struct DirectoryEntry read_struct;
+        fread(&read_struct, sizeof(read_struct), 1, file_ptr);
+        if (read_struct[0] == ' ') {
+            // empty space found
+            fwrite(&entry, sizeof(DirectoryEntry), 1, file_ptr);
+            break;
+            found = true;
         }
     }
 
+    // DirectoryEntry** listEntries = FAT_DATA[block_to_check];
+    // int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+    // if (listEntries){
+    //     for (int j = 0; j < max_entries; j++) {
+    //         DirectoryEntry* entry = listEntries[j];
+    //         // Update timestamp to current system time if it exists
+    //         if (!entry) {
+    //             listEntries[j] = entry;
+    //             return 0;
+    //         }
+    //     }
+    // }
+
     // If no space, add another block to the FAT chain
+    if (found) {
+        return 0;
+    }
     int new_final_block = find_first_free_block();
     FAT_TABLE[last_block] = new_final_block;
     FAT_TABLE[new_final_block] = 0XFFFF;
-    DirectoryEntry** listEntries = FAT_DATA[new_final_block];
-    listEntries[0] = entry;
+    lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (new_final_block - 1)), SEEK_SET);
+    fwrite(&entry, sizeof(DirectoryEntry), 1, file_ptr);
 
     return 0;
 }
@@ -362,6 +414,7 @@ int append_to_penn_fat(char* data, int block_no) {
     // Find last block in file (assumes delete_from_penn_fat removes all old blocks)
     int last_block = block_no;
     int next_block = last_block;
+    int fs_fd = open(FS_NAME, O_RDWR);
     while (next_block != 0XFFFF) {
         last_block = next_block;
         next_block = FAT_TABLE[next_block];
@@ -382,7 +435,8 @@ int append_to_penn_fat(char* data, int block_no) {
         FAT_TABLE[new_final_block] = 0XFFFF;
         last_block = new_final_block;
         // Write data to new block
-        FAT_DATA[new_final_block] = cur_data_block; 
+        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (new_final_block - 1)), SEEK_SET);
+        write(fs_fd, cur_data_block, sizeof(char) * strlen(cur_data_block));
         free(cur_data_block);
     }
     return 0;
@@ -445,7 +499,7 @@ int cp_helper(const char *source, const char *dest) {
     // find source file
     // open file
     free(entry);
-    DirectoryEntry* entry = get_entry_from_name(source);
+    DirectoryEntry* entry = get_entry_from_root(source);
 
     int* chain = get_fat_chain(entry->firstBlock);
 
@@ -453,7 +507,9 @@ int cp_helper(const char *source, const char *dest) {
         if (!chain[i]) {
             break;
         }
-        char* txt = FAT_DATA[chain[i]];
+        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (chain[i] - 1)), SEEK_SET);
+        char* txt = malloc(sizeof(char) * BLOCK_SIZE);
+        read(fs_fd, txt, sizeof(char) * BLOCK_SIZE);
         // write to file
         append_to_penn_fat(txt, d_entry->firstBlock);
     }
@@ -485,7 +541,7 @@ int cp_from_h(const char *source, const char *dest) {
 // copying from fat to host
 int cp_to_h(const char *source, const char *dest) {
     // open fat binary
-    int fs_fd = open(fs_name, O_RDWR);
+    int fs_fd = open(FS_NAME, O_RDWR);
     if (fs_fd == -1) {
         perror("Error opening file system image");
         exit(1);
@@ -509,7 +565,9 @@ int cp_to_h(const char *source, const char *dest) {
             break;
         }
         // copy block into host file
-        char* txt = FAT_DATA[chain[i]];
+        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (chain[i] - 1)), SEEK_SET);
+        char* txt = malloc(sizeof(char) * BLOCK_SIZE);
+        read(fs_fd, txt, sizeof(char) * BLOCK_SIZE);
         write(h_fd, txt, sizeof(char) * strlen(txt));
     }
     free(chain);
@@ -523,16 +581,23 @@ int f_lseek(int fd, int offset, int whence) {
 
     // TODO: Store the current position, need to keep track of position somehow
     off_t current_position = fcb->position;
+    int blocks = offset / BLOCK_SIZE;
+    int rem = offset % BLOCK_SIZE;
 
+    // find entry name
+    FDTEntry* fdtEntry = FDT[fd];
+    DirectoryEntry* entry = get_entry_from_root(fdtEntry->name);
+    int* chain = get_fat_chain(entry->firstBlock);
+    
     switch (whence) {
         case F_SEEK_SET:
-            new_position = offset;
+            new_position = TABLE_REGION_SIZE + (BLOCK_SIZE * (chain[blocks]-1)) + rem;
             break;
         case F_SEEK_CUR:
             new_position = current_position + offset;
             break;
         case F_SEEK_END:
-
+            // TODO: need to actually store the current position somewhere
 
             new_offset = lseek(fd, offset, whence);
             if (new_offset == -1) {
@@ -555,29 +620,41 @@ void f_ls(const char *filename) {
     // print file names 
 
     // open file
-    int fs_fd = open(fs_name, O_RDWR);
-    if (fs_fd == -1) {
-        perror("Error opening file system image");
-        exit(1);
-    }
+    FILE * file_ptr = fopen(FS_NAME, "r");
+    int fs_fd = open(FS_NAME, O_RDWR);
+    // if (fs_fd == -1) {
+    //     perror("Error opening file system image");
+    //     exit(1);
+    // }
 
     // get root directories
     int* root_chain = get_fat_chain(1);
+    // max number of directory entry structs in the block
+    int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
 
     for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
         if (!root_chain[i]) {
             break;
         }
-        DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
-        int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-        if (listEntries){
-            for (int j = 0; j < max_entries; j++) {
-                DirectoryEntry* entry = listEntries[j];
-                if (entry) {
-                    write(STDOUT_FILENO, entry->name, sizeof(char)*strlen(entry->name));
-                }
+        // position file pointer
+        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE* (root_chain[i] - 1)), SEEK_SET);
+        for (int i = 0; i < num_entries; i++) {
+            struct DirectoryEntry read_struct;
+            fread(&read_struct, sizeof(read_struct), 1, file_ptr);
+            if (read_struct) {
+                printf(read_struct->name);
             }
         }
+        // DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
+        // int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+        // if (listEntries){
+        //     for (int j = 0; j < max_entries; j++) {
+        //         DirectoryEntry* entry = listEntries[j];
+        //         if (entry) {
+        //             write(STDOUT_FILENO, entry->name, sizeof(char)*strlen(entry->name));
+        //         }
+        //     }
+        // }
     }
     free(root_chain);
     close(fs_fd);
