@@ -34,6 +34,8 @@ void mkfs(const char *fs_name, int blocks_in_fat, int block_size_config) {
             break;
     }
 
+    FS_NAME = fs_name; // save name
+
     // Calculate FAT and file system size
     FAT_SIZE = BLOCK_SIZE * blocks_in_fat;
     NUM_FAT_ENTRIES = (BLOCK_SIZE * blocks_in_fat) / 2;
@@ -76,12 +78,12 @@ void mount(const char *fs_name) {
     }
 
     // Mmap for data region
-    FAT_DATA = mmap(NULL, DATA_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, TABLE_REGION_SIZE);
-    if (FAT_DATA == MAP_FAILED) {
-        perror("Error mapping file system");
-        close(fs_fd);
-        exit(1);
-    }
+    // FAT_DATA = mmap(NULL, DATA_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, TABLE_REGION_SIZE);
+    // if (FAT_DATA == MAP_FAILED) {
+    //     perror("Error mapping file system");
+    //     close(fs_fd);
+    //     exit(1);
+    // }
 
     close(fs_fd);
 }
@@ -89,7 +91,7 @@ void mount(const char *fs_name) {
 // TODO: global var with fs_name
 void umount() {
     // Open the file system file
-    int fs_fd = open(fs_name, O_RDWR);
+    int fs_fd = open(FS_NAME, O_RDWR);
     if (fs_fd == -1) {
         perror("Error opening file system image");
         exit(1);
@@ -103,6 +105,7 @@ void umount() {
         if (!root_chain[i]) {
             break;
         }
+        fopen(FS_NAME, "r")
         DirectoryEntry** listEntries = FAT_DATA[root_chain[i]];
         int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
         if (listEntries){

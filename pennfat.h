@@ -7,7 +7,8 @@
 
 int BLOCKS_IN_FAT, BLOCK_SIZE, FAT_SIZE, NUM_FAT_ENTRIES, TABLE_REGION_SIZE, DATA_REGION_SIZE;
 uint16_t *FAT_TABLE;
-uint16_t *FAT_DATA;
+char FS_NAME*;
+// uint16_t *FAT_DATA;
 DirectoryEntry* ROOT;
 
 // File Descriptor Table
