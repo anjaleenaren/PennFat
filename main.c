@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "pennfat_helper.h"
 #include "pennfat.h"
 
 // #define MAX_FILES 32 // Maximum number of files in the root directory
