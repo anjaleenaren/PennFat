@@ -36,12 +36,19 @@ int main(int argc, char *argv[]) {
     // mkfs("minfs", 1, 1);
     mkfs("maxfs", 32, 4);
     // mkfs("testfs", 1, 0);
-    mount("maxfs");
 
-    // Open a file in the filesystem
+    mount("maxfs");
     int fd = f_open("test.txt", F_WRITE);
-    f_write(fd, "Hello world!\n", 25);
+    //print fd
+    printf("fd: %d\n", fd);
+    printf("\nwrite: %d\n", f_write(fd, "Hello world!\n", 13));
+    int fd1 = f_open("test.txt", F_WRITE);
+    //print fd
+    printf("fd1: %d\n", fd1);
+    // f_write(fd, "Hello world!\n", 25);
+    f_close(fd1);
     f_close(fd);
+    unmount();
 
     return 0;
 }

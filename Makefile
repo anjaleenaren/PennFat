@@ -23,7 +23,7 @@ CC = clang
 
 # Replace -O1 with -g for a debug version during development
 #
-CFLAGS = -Wall -Werror -g
+CFLAGS =  -Wall -g
 
 SRCS = $(wildcard *.c)
 OBJS = $(SRCS:.c=.o)

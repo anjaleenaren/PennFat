@@ -34,8 +34,8 @@ void mkfs(char *fs_name, int blocks_in_fat, int block_size_config) {
             BLOCK_SIZE = 4096;
             break;
     }
-
-    FS_NAME = fs_name; // save name
+    FS_NAME = malloc(sizeof(char) * strlen(fs_name));
+    strcpy(FS_NAME, fs_name); // save name
 
     // Calculate FAT and file system size
     FAT_SIZE = BLOCK_SIZE * blocks_in_fat;
@@ -54,7 +54,7 @@ void mkfs(char *fs_name, int blocks_in_fat, int block_size_config) {
     FDT = malloc(sizeof(FDTEntry*) * NUM_FAT_ENTRIES);
 
     // Mmap for FAT table region
-    FAT_TABLE = mmap(NULL, TABLE_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
+    FAT_TABLE = mmap(NULL, FAT_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
     if (FAT_TABLE == MAP_FAILED) {
         perror("Error mmapping the directory entries");
         close(fs_fd);
@@ -123,6 +123,9 @@ void unmount() {
     // }
     // 3. Free root_chain
     // free(root_chain);
+    free(FS_NAME);
+    free(FDT);
+
 
     // Unmap the memory-mapped region
     if (munmap(FAT_TABLE, TABLE_REGION_SIZE) == -1) {
@@ -168,6 +171,8 @@ void strcat_data(char* data, int start_index) {
 }
 
 int find_first_free_block() {
+    printf("here!!!\n");
+    printf("FAT_TABLE[1]: %d\n", FAT_TABLE[0]);
     for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
         if (FAT_TABLE[i] == 0) {
             return i;
@@ -256,7 +261,7 @@ DirectoryEntry* delete_entry_from_root(const char *filename) {
             if (read_struct && strcmp(read_struct->name, filename) == 0) {
                 // overwrite with spaces
                 for (long long i = 0; i < sizeof(DirectoryEntry); ++i) {
-                    fputc(' ', file_ptr);
+                    fputc('\0', file_ptr);
                     found = 1;
                 }
                 break;
@@ -286,33 +291,48 @@ DirectoryEntry* delete_entry_from_root(const char *filename) {
 }
 
 int add_entry_to_root(DirectoryEntry* entry) {
-    int start_block = FAT_TABLE[1];
+    int start_block = 1;
+
     int last_block = start_block;
     int next_block = start_block;
-    FILE * file_ptr = fopen(FS_NAME, "w+");
     int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
     bool found = false;
-    int fs_fd = open(FS_NAME, O_RDWR);
+    int_least32_t fs_fd = open(FS_NAME, O_RDWR);
 
     // Iterate through all the root blocks until we find final one
     while (next_block != 0XFFFF) {
         last_block = next_block;
         next_block = FAT_TABLE[next_block];
+        printf("last_block: %d\n", last_block);
     }
     
     // Check if there is space in the last root block
     int block_to_check = last_block;
-    lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
+    // Seek to access DIRECTORY-BLOCK in the DATA region that contains the file we are looking for
+    lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET); 
 
+    printf("num_entries: %d\n", num_entries);
     for (int i = 0; i < num_entries; i++) {
-        DirectoryEntry* read_struct;
-        fread(&read_struct, sizeof(read_struct), 1, file_ptr);
-        if (read_struct->name[0] != '\0') { // how to check if it's ' '
-            // empty space found
-            fwrite(&entry, sizeof(DirectoryEntry), 1, file_ptr);
+        // Go through this DIRECTORY-BLOCK to find the first empty file space
+        DirectoryEntry* read_struct = malloc(sizeof(DirectoryEntry));
+        if (read_struct == NULL) {
+            perror("Error allocating memory for read_struct in add_entry_to_root");
             break;
-            found = 1;
         }
+
+        read(fs_fd, read_struct, BLOCK_SIZE); //, 1, fs_fd);
+        printf("%d read_struct: %s\n", i, read_struct->name);
+        // check if name is empty
+        if (strcmp(read_struct->name, "") == 0) {
+            // empty space found
+            lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)), SEEK_SET); 
+            write(fs_fd, entry, sizeof(DirectoryEntry));//, 1, fs_fd);
+            found = true;
+            printf("%d read_struct: %s\n", i, read_struct->name);
+            break;
+        }
+        
+        free(read_struct);
     }
 
     // DirectoryEntry** listEntries = FAT_DATA[block_to_check];
@@ -333,10 +353,11 @@ int add_entry_to_root(DirectoryEntry* entry) {
         return 0;
     }
     int new_final_block = find_first_free_block();
+    printf("new_final_block: %d\n", new_final_block);
     FAT_TABLE[last_block] = new_final_block;
     FAT_TABLE[new_final_block] = 0XFFFF;
     lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (new_final_block - 1)), SEEK_SET);
-    fwrite(&entry, sizeof(DirectoryEntry), 1, file_ptr);
+    write(fs_fd, entry, sizeof(DirectoryEntry));
 
     return 0;
 }
@@ -357,6 +378,7 @@ int touch(const char *filename) {
     // See if file currently exists by iterating through root directory
     DirectoryEntry* entry = get_entry_from_root(filename);
     if (entry) {
+        printf("Found entry for file in touch\n");
         entry->mtime = time(NULL);
         return 0;
     }
@@ -369,12 +391,14 @@ int touch(const char *filename) {
     entry->type = 1; // TODO: is how do we set type
     entry->perm = 7; // TODO: is how do we set perm
     entry->mtime = time(NULL); // set time to now TODO: is this correct funciton call?
-    
+
     // Save pointer at the end of root entries block
     if (add_entry_to_root(entry) == -1) {
         perror("Error: no empty entries in root directory");
         return -1;
     }
+
+    free(entry);
     return 0;
 }
 
@@ -418,6 +442,7 @@ int rm(const char *filename) {
 // adds data to end of file, given a block number in the file
 int append_to_penn_fat(char* data, int block_no) {
     // Find last block in file (assumes delete_from_penn_fat removes all old blocks)
+    printf("[DEBUG] append_to_penn_fat - block_no: %d\n", block_no);
     int last_block = block_no;
     int next_block = last_block;
     int fs_fd = open(FS_NAME, O_RDWR);
@@ -765,9 +790,11 @@ int f_open(char *fname, int mode) {
     }
     FDTEntry* fdtEntry = malloc(sizeof(FDTEntry));
     fdtEntry->mode = mode;
-    fdtEntry->name = fname;
+    strcpy(fdtEntry->name, fname);
+    
     fdtEntry->offset = 0;
     FDT[next_descriptor] = fdtEntry;
+    printf("[DEBUG] Created file descriptor %d, name: %s\n", next_descriptor, FDT[next_descriptor]->name);
 
     return next_descriptor;
 }
@@ -811,11 +838,13 @@ int f_read(int fd, int n, char *buf) {
 }
 
 int f_write(int fd, const char *str, int n) {
+    printf("ENTER WRITE");
     // Check if file descriptor is valid
     if (fd < 0 || fd >= NUM_FAT_ENTRIES) {
         perror("Error: invalid file descriptor");
         return -1;
     }
+    printf("0");
     // Check if file is open
     if (!FDT[fd]) {
         perror("Error: file is not open");
@@ -826,10 +855,13 @@ int f_write(int fd, const char *str, int n) {
         perror("Error: file is not open for writin or appending");
         return -1;
     }
+    printf("A");
     // Get directory entry for file and write
     DirectoryEntry* entry = get_entry_from_root(FDT[fd]->name);
     char* data = malloc(sizeof(char) * BLOCK_SIZE * NUM_FAT_ENTRIES);
+    printf("B");
     if (FDT[fd]->mode == F_APPEND) {
+        printf("C");
         if (!entry) {
             // Create file if it does not exist
             if (touch(FDT[fd]->name) < 0) {
@@ -847,28 +879,35 @@ int f_write(int fd, const char *str, int n) {
         // Append new data to file data
         strcat(data, str);
     } else {
+        printf("D");
         if (entry) {
             // Delete old file from penn fat if it exists and recreate it
             if (delete_from_penn_fat(FDT[fd]->name) < 0) {
                 perror("f_write - Error deleting file cannot write properly, exiting");
                 return -1;
             }
+            printf("D.1\n");
         }
+        printf("D.1.5: %s\n", FDT[fd]->name);
         if (touch(FDT[fd]->name) < 0) {
             perror("f_write - Error creating file using touch");
             return -1;
         }
         // Copy str into data
+        printf("D.2\n");
         strncpy(data, str, n);
     }
+    printf("E");
     // Write data to file
     entry = get_entry_from_root(FDT[fd]->name);
     if (!entry) {
         perror("f_write - Error finding file entry before append");
         return -1;
     }
+    printf("F");
     append_to_penn_fat(data, entry->firstBlock);
-    free(data);
+    FDT[fd]->offset += n; // increment offset by n
+    // free(data);
     return n;
 }
 

@@ -13,7 +13,7 @@ char* FS_NAME;
 
 // File Descriptor Table
 typedef struct {
-    char* name; // null-terminated file name (matches with DirectoryEntry)
+    char name[MAX_FILENAME_LENGTH]; // null-terminated file name (matches with DirectoryEntry)
     int mode; // mode file is opened in
     int offset; // offset of file pointer
 } FDTEntry;
