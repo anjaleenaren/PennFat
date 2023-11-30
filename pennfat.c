@@ -93,7 +93,7 @@ void mount(const char *fs_name) {
 }
 
 // TODO: global var with fs_name
-void umount() {
+void unmount() {
     // Open the file system file
     int fs_fd = open(FS_NAME, O_RDWR);
     if (fs_fd == -1) {
@@ -766,6 +766,7 @@ int f_open(char *fname, int mode) {
     FDTEntry* fdtEntry = malloc(sizeof(FDTEntry));
     fdtEntry->mode = mode;
     fdtEntry->name = fname;
+    fdtEntry->offset = 0;
     FDT[next_descriptor] = fdtEntry;
 
     return next_descriptor;

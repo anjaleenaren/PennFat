@@ -15,6 +15,7 @@ char* FS_NAME;
 typedef struct {
     char* name; // null-terminated file name (matches with DirectoryEntry)
     int mode; // mode file is opened in
+    int offset; // offset of file pointer
 } FDTEntry;
 FDTEntry** FDT;
 
@@ -66,7 +67,7 @@ void mount(const char *fs_name);
 /**
  * Unmounts the currently mounted PennFAT filesystem.
  */
-void umount();
+void unmount();
 
 /**
  * Creates a file if it does not exist, or updates its timestamp to the current system time.
