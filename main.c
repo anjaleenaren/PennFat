@@ -36,6 +36,7 @@ int main(int argc, char *argv[]) {
     // mkfs("minfs", 1, 1);
     mkfs("maxfs", 32, 4);
     // mkfs("testfs", 1, 0);
+    mount("maxfs");
 
     // Open a file in the filesystem
     int fd = f_open("test.txt", F_WRITE);
