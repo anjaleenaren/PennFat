@@ -196,6 +196,8 @@ void strcat_data(char* data, int start_index);
 /**
  * Gets the directory entry of a file from its name.
  * @param filename Name of the file to get the entry of.
+ * @param update_first_block Flag to indicate if we should update the first block of the entry
+ *  (set to true whenever you are writing)
  * @return Directory entry of the file.
  */
 DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_block);
@@ -227,9 +229,10 @@ int delete_from_penn_fat(const char *filename);
  * Appends to a file in PennFat Table that starts at block_no (needs to have a DirectoryEntry already).
  * @param data string to append to file.
  * @param block_no block number to append to (typically entry->firstBlock)
+ * @param n max number of bytes to append (will be ignored if greater than block size)
  * @return 0 on success, negative on error.
  */
-int append_to_penn_fat(char* data, int block_no);
+int append_to_penn_fat(char* data, int block_no, int n);
 
 int cp_from_h(const char *source, const char *dest);
 

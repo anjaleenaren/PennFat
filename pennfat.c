@@ -171,8 +171,6 @@ void strcat_data(char* data, int start_index) {
 }
 
 int find_first_free_block() {
-    printf("here!!!\n");
-    printf("FAT_TABLE[1]: %d\n", FAT_TABLE[0]);
     for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
         if (FAT_TABLE[i] == 0) {
             return i;
@@ -318,7 +316,6 @@ int add_entry_to_root(DirectoryEntry* entry) {
     while (next_block != 0XFFFF) {
         last_block = next_block;
         next_block = FAT_TABLE[next_block];
-        printf("last_block: %d\n", last_block);
     }
     
     // Check if there is space in the last root block
@@ -326,7 +323,6 @@ int add_entry_to_root(DirectoryEntry* entry) {
     // Seek to access DIRECTORY-BLOCK in the DATA region that contains the file we are looking for
     lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET); 
 
-    printf("num_entries: %d\n", num_entries);
     for (int i = 0; i < num_entries; i++) {
         // Go through this DIRECTORY-BLOCK to find the first empty file space
         DirectoryEntry* read_struct = malloc(sizeof(DirectoryEntry));
@@ -455,9 +451,9 @@ int rm(const char *filename) {
 }
 
 // adds data to end of file, given a block number in the file
-int append_to_penn_fat(char* data, int block_no) {
+int append_to_penn_fat(char* data, int block_no, int n) {
     // Find last block in file (assumes delete_from_penn_fat removes all old blocks)
-    printf("[DEBUG] append_to_penn_fat - block_no: %d\n", block_no);
+    printf("[DEBUG] append_to_penn_fat - block_no: %d, str: %s\n", block_no, data);
     int last_block = block_no;
     int next_block = last_block;
     int fs_fd = open(FS_NAME, O_RDWR);
@@ -465,12 +461,13 @@ int append_to_penn_fat(char* data, int block_no) {
         last_block = next_block;
         next_block = FAT_TABLE[next_block];
     }
-    printf("[DEBUG] append_to_penn_fat - last_block: %d\n", last_block);
     // Iterate through data block by block (each block is block_size bytes)
     char* cur_data_block;
     int offset = 0;
     while (offset < sizeof(char) * strlen(data)) {
-        cur_data_block = strndup(&data[offset], BLOCK_SIZE);
+        n = n - offset  >= 1 ? n - offset : 0;
+        int max_size = n < BLOCK_SIZE ? n : BLOCK_SIZE;
+        cur_data_block = strndup(&data[offset], max_size);
         if (!cur_data_block) {
             perror("cat - Error copying data block with strndup");
             return -1;
@@ -485,9 +482,15 @@ int append_to_penn_fat(char* data, int block_no) {
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (new_final_block - 1)), SEEK_SET);
         write(fs_fd, cur_data_block, sizeof(char) * strlen(cur_data_block));
         free(cur_data_block);
+
+        if (n - strlen(cur_data_block) < 1) {
+            // Add null terminator and break
+            printf("[DEBUG] append_to_penn_fat - adding null terminator\n");
+            write(fs_fd, "\0", sizeof(char));
+            return offset;
+        }
     }
-    printf("[DEBUG] append_to_penn_fat - last_block: %d\n", last_block);
-    return 0;
+    return strlen(data);
 }
 
 char* read_file_to_string(int fd) {
@@ -561,7 +564,7 @@ int cp_helper(const char *source, const char *dest) {
         char* txt = malloc(sizeof(char) * BLOCK_SIZE);
         read(fs_fd, txt, sizeof(char) * BLOCK_SIZE);
         // write to file
-        append_to_penn_fat(txt, d_entry->firstBlock);
+        append_to_penn_fat(txt, d_entry->firstBlock, BLOCK_SIZE);
     }
     return 0;
 }
@@ -586,7 +589,7 @@ int cp_from_h(const char *source, const char *dest) {
     // TODO: update directory entry with the first block of file
     char* txt = read_file_to_string(h_fd);
     int i = find_first_free_block();
-    append_to_penn_fat(txt, i);
+    append_to_penn_fat(txt, i, BLOCK_SIZE);
     return 0;
 }
 
@@ -777,7 +780,7 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
             }
         }
         entry = get_entry_from_root(output_file, true); // Update entry value
-        append_to_penn_fat(data, entry->firstBlock);
+        append_to_penn_fat(data, entry->firstBlock, BLOCK_SIZE);
     } else {
         // Write to stdout
         int num_bytes = write(STDOUT_FILENO, data, sizeof(char) * strlen(data));
@@ -890,7 +893,7 @@ int f_write(int fd, const char *str, int n) {
         // Get file data
         strcat_data(data, entry->firstBlock);
         // Append new data to file data
-        strcat(data, str);
+        strncat(data, str, n);
     } else {
         if (entry) {
             // Delete old file from penn fat if it exists and recreate it
@@ -913,10 +916,14 @@ int f_write(int fd, const char *str, int n) {
         return -1;
     }
     // Get first block and set it if it hasn't been set
-    append_to_penn_fat(data, entry->firstBlock);
-    FDT[fd]->offset += n; // increment offset by n
-    // free(data);
-    return n;
+    int chars_added = append_to_penn_fat(data, entry->firstBlock, n);
+    if (chars_added < 0) {
+        perror("f_write - Error appending to penn fat");
+        return -1;
+    }
+    FDT[fd]->offset += chars_added; // increment offset by n
+    free(data);
+    return chars_added;
 }
 
 int f_close(int fd) {
