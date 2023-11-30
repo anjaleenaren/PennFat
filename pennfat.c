@@ -307,7 +307,7 @@ int add_entry_to_root(DirectoryEntry* entry) {
     for (int i = 0; i < num_entries; i++) {
         DirectoryEntry* read_struct;
         fread(&read_struct, sizeof(read_struct), 1, file_ptr);
-        if (read_struct->name) { // how to check if it's ' '
+        if (read_struct->name[0] != '\0') { // how to check if it's ' '
             // empty space found
             fwrite(&entry, sizeof(DirectoryEntry), 1, file_ptr);
             break;
@@ -429,7 +429,7 @@ int append_to_penn_fat(char* data, int block_no) {
     char* cur_data_block;
     int offset = 0;
     while (offset < sizeof(char) * strlen(data)) {
-        cur_data_block = strndup(data[offset], BLOCK_SIZE);
+        cur_data_block = strndup(&data[offset], BLOCK_SIZE);
         if (!cur_data_block) {
             perror("cat - Error copying data block with strndup");
             return -1;

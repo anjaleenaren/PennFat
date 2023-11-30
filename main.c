@@ -33,10 +33,14 @@
 int main(int argc, char *argv[]) {
     // Initialize or mount the file system here
 
-    mkfs("minfs", 1, 1);
+    // mkfs("minfs", 1, 1);
     mkfs("maxfs", 32, 4);
-    mkfs("testfs", 1, 0);
+    // mkfs("testfs", 1, 0);
+
+    // Open a file in the filesystem
+    int fd = f_open("test.txt", F_WRITE);
+    f_write(fd, "Hello world!\n", 25);
+    f_close(fd);
 
     return 0;
 }
-
