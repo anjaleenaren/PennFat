@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     int fd = f_open("test.txt", F_WRITE);
     //print fd
     printf("fd: %d\n", fd);
-    printf("\nwrite: %d\n", f_write(fd, "Hello world!\n", 13));
+    printf("\nwrite: %d\n", f_write(fd, "Hello world!\n", 30));
     int fd1 = f_open("test.txt", F_WRITE);
     //print fd
     printf("fd1: %d\n", fd1);

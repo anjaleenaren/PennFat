@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <time.h>
+#include <stdbool.h>
 
 // Constants and macros
 #define MAX_FILENAME_LENGTH 32
@@ -197,7 +198,7 @@ void strcat_data(char* data, int start_index);
  * @param filename Name of the file to get the entry of.
  * @return Directory entry of the file.
  */
-DirectoryEntry* get_entry_from_root(const char *filename);
+DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_block);
 
 /**
  * Adds a directory entry to the root directory.

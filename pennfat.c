@@ -183,7 +183,7 @@ int find_first_free_block() {
 
 int delete_from_penn_fat(const char *filename) {
     // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_root(filename);
+    DirectoryEntry* entry = get_entry_from_root(filename, true);
     if (!entry) {
         perror("Error: source file does not exist");
         return -1;
@@ -202,10 +202,9 @@ int delete_from_penn_fat(const char *filename) {
     return 0;
 }
 
-DirectoryEntry* get_entry_from_root(const char *filename) {
-    int start_block = FAT_TABLE[1];
+DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_block) {
+    int start_block = 1;
     int next_block = start_block;
-    FILE * file_ptr = fopen(FS_NAME, "r");
     int fs_fd = open(FS_NAME, O_RDONLY);
     // Iterate through all the root blocks
 
@@ -219,10 +218,21 @@ DirectoryEntry* get_entry_from_root(const char *filename) {
         
         for (int i = 0; i < num_entries; i++) {
             DirectoryEntry* read_struct = malloc(sizeof(DirectoryEntry));
-            fread(&read_struct, sizeof(read_struct), 1, file_ptr);
+            read(fs_fd, read_struct, BLOCK_SIZE);
+            // fread(&read_struct, sizeof(read_struct), 1, file_ptr);
             if (read_struct && strcmp(read_struct->name, filename) == 0) {
+                if (update_first_block) {
+                    if (read_struct->firstBlock == (uint16_t) -1) {
+                        read_struct->firstBlock = find_first_free_block();
+                        FAT_TABLE[read_struct->firstBlock] = 0XFFFF;
+                        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)), SEEK_SET);
+                        write(fs_fd, read_struct, sizeof(DirectoryEntry));
+                    }
+                }
+                free(read_struct);
                 return read_struct;
             }
+            free(read_struct);
         }
 
         // int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
@@ -243,9 +253,8 @@ DirectoryEntry* get_entry_from_root(const char *filename) {
 }
 
 DirectoryEntry* delete_entry_from_root(const char *filename) {
-    int start_block = FAT_TABLE[1];
+    int start_block = 1;
     int next_block = start_block;
-    FILE * file_ptr = fopen(FS_NAME, "w+");
     int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
     int found = 0;
     int fs_fd = open(FS_NAME, O_RDWR);
@@ -256,16 +265,22 @@ DirectoryEntry* delete_entry_from_root(const char *filename) {
         int block_to_check = next_block;
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
         for (int i = 0; i < num_entries; i++) {
-            DirectoryEntry* read_struct;
-            fread(&read_struct, sizeof(read_struct), 1, file_ptr);
+            DirectoryEntry* read_struct = malloc(sizeof(DirectoryEntry));
+            // fread(&read_struct, sizeof(read_struct), 1, file_ptr);
+            read(fs_fd, read_struct, BLOCK_SIZE);
             if (read_struct && strcmp(read_struct->name, filename) == 0) {
                 // overwrite with spaces
+                // lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)), SEEK_SET);
                 for (long long i = 0; i < sizeof(DirectoryEntry); ++i) {
-                    fputc('\0', file_ptr);
+                    write(fs_fd, " ", 1);
                     found = 1;
                 }
+
+                free(read_struct);
                 break;
             }
+
+            free(read_struct);
         }
         if (found) {
             break;
@@ -297,7 +312,7 @@ int add_entry_to_root(DirectoryEntry* entry) {
     int next_block = start_block;
     int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
     bool found = false;
-    int_least32_t fs_fd = open(FS_NAME, O_RDWR);
+    int fs_fd = open(FS_NAME, O_RDWR);
 
     // Iterate through all the root blocks until we find final one
     while (next_block != 0XFFFF) {
@@ -376,7 +391,7 @@ int touch(const char *filename) {
         return -1;
     }
     // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_root(filename);
+    DirectoryEntry* entry = get_entry_from_root(filename, false);
     if (entry) {
         printf("Found entry for file in touch\n");
         entry->mtime = time(NULL);
@@ -406,7 +421,7 @@ int mv(const char *source, const char *dest) {
     // TODO: add function to validate name
 
     // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_root(source);
+    DirectoryEntry* entry = get_entry_from_root(source, false);
     if (!entry) {
         perror("Error: source file does not exist");
         return -1;
@@ -420,7 +435,7 @@ int mv(const char *source, const char *dest) {
 
 int rm(const char *filename) {
     // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_root(filename);
+    DirectoryEntry* entry = get_entry_from_root(filename, false);
     if (!entry) {
         perror("Error: source file does not exist");
         return -1;
@@ -450,6 +465,7 @@ int append_to_penn_fat(char* data, int block_no) {
         last_block = next_block;
         next_block = FAT_TABLE[next_block];
     }
+    printf("[DEBUG] append_to_penn_fat - last_block: %d\n", last_block);
     // Iterate through data block by block (each block is block_size bytes)
     char* cur_data_block;
     int offset = 0;
@@ -470,6 +486,7 @@ int append_to_penn_fat(char* data, int block_no) {
         write(fs_fd, cur_data_block, sizeof(char) * strlen(cur_data_block));
         free(cur_data_block);
     }
+    printf("[DEBUG] append_to_penn_fat - last_block: %d\n", last_block);
     return 0;
 }
 
@@ -522,7 +539,7 @@ int cp_helper(const char *source, const char *dest) {
     int fs_fd = open(FS_NAME, O_RDWR);
 
     // both in fat
-    DirectoryEntry* d_entry = get_entry_from_root(dest);
+    DirectoryEntry* d_entry = get_entry_from_root(dest, true);
     if (d_entry) {
         delete_entry_from_root(dest);
     }
@@ -532,7 +549,7 @@ int cp_helper(const char *source, const char *dest) {
     // find source file
     // open file
     free(d_entry);
-    DirectoryEntry* entry = get_entry_from_root(source);
+    DirectoryEntry* entry = get_entry_from_root(source, true);
 
     int* chain = get_fat_chain(entry->firstBlock);
 
@@ -560,7 +577,7 @@ int cp_from_h(const char *source, const char *dest) {
     }
 
     // check if file exists in fat, remove if it does
-    DirectoryEntry* entry = get_entry_from_root(dest);
+    DirectoryEntry* entry = get_entry_from_root(dest, true);
     if (entry) {
         delete_entry_from_root(dest);
     }
@@ -583,7 +600,7 @@ int cp_to_h(const char *source, const char *dest) {
     }
 
     // get directory entry for file
-    DirectoryEntry* entry = get_entry_from_root(source);
+    DirectoryEntry* entry = get_entry_from_root(source, true);
     if (!entry) {
         perror("Error: source file does not exist");
         return -1;
@@ -623,7 +640,7 @@ int f_lseek(int fd, int offset, int whence) {
 
     // find entry name
     FDTEntry* fdtEntry = FDT[fd];
-    DirectoryEntry* entry = get_entry_from_root(fdtEntry->name);
+    DirectoryEntry* entry = get_entry_from_root(fdtEntry->name, false);
     int* chain = get_fat_chain(entry->firstBlock);
     
     switch (whence) {
@@ -712,7 +729,7 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
         // Concatenate files
         for (int i = 0; i < num_files; i++) {
             // Get directory entry for file
-            DirectoryEntry* entry = get_entry_from_root(files[i]);
+            DirectoryEntry* entry = get_entry_from_root(files[i], true);
             if (!entry) {
                 perror("Error: source file does not exist");
                 return -1;
@@ -732,7 +749,7 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
     // Step 2: Output data
     if (output_file) {
         // Write to file
-        DirectoryEntry* entry = get_entry_from_root(output_file);
+        DirectoryEntry* entry = get_entry_from_root(output_file, true);
         if (append) {
             if (!entry) {
                 // Create file if it does not exist
@@ -740,7 +757,7 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
                     perror("cat - Error creating file using touch");
                     return -1;
                 }
-                entry = get_entry_from_root(output_file);
+                entry = get_entry_from_root(output_file, true);
                 if (!entry) {
                     perror("cat - Error creating file using touch (entry still null)");
                     return -1;
@@ -759,7 +776,7 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
                 return -1;
             }
         }
-        entry = get_entry_from_root(output_file); // Update entry value
+        entry = get_entry_from_root(output_file, true); // Update entry value
         append_to_penn_fat(data, entry->firstBlock);
     } else {
         // Write to stdout
@@ -817,7 +834,7 @@ int f_read(int fd, int n, char *buf) {
     }
 
     // Get directory entry for file
-    DirectoryEntry* entry = get_entry_from_root(FDT[fd]->name);
+    DirectoryEntry* entry = get_entry_from_root(FDT[fd]->name, false);
     if (!entry) {
         perror("Error: source file does not exist");
         return -1;
@@ -838,13 +855,12 @@ int f_read(int fd, int n, char *buf) {
 }
 
 int f_write(int fd, const char *str, int n) {
-    printf("ENTER WRITE");
+    printf("[DEBUG] F_WRITE fd: %d, str: %s, n: %d\n", fd, str, n);
     // Check if file descriptor is valid
     if (fd < 0 || fd >= NUM_FAT_ENTRIES) {
         perror("Error: invalid file descriptor");
         return -1;
     }
-    printf("0");
     // Check if file is open
     if (!FDT[fd]) {
         perror("Error: file is not open");
@@ -855,20 +871,17 @@ int f_write(int fd, const char *str, int n) {
         perror("Error: file is not open for writin or appending");
         return -1;
     }
-    printf("A");
     // Get directory entry for file and write
-    DirectoryEntry* entry = get_entry_from_root(FDT[fd]->name);
+    DirectoryEntry* entry = get_entry_from_root(FDT[fd]->name, true);
     char* data = malloc(sizeof(char) * BLOCK_SIZE * NUM_FAT_ENTRIES);
-    printf("B");
     if (FDT[fd]->mode == F_APPEND) {
-        printf("C");
         if (!entry) {
             // Create file if it does not exist
             if (touch(FDT[fd]->name) < 0) {
                 perror("f_write - Error creating file using touch");
                 return -1;
             }
-            entry = get_entry_from_root(FDT[fd]->name);
+            entry = get_entry_from_root(FDT[fd]->name, true);
             if (!entry) {
                 perror("f_write - Error creating file using touch (entry still null)");
                 return -1;
@@ -879,32 +892,27 @@ int f_write(int fd, const char *str, int n) {
         // Append new data to file data
         strcat(data, str);
     } else {
-        printf("D");
         if (entry) {
             // Delete old file from penn fat if it exists and recreate it
             if (delete_from_penn_fat(FDT[fd]->name) < 0) {
                 perror("f_write - Error deleting file cannot write properly, exiting");
                 return -1;
             }
-            printf("D.1\n");
         }
-        printf("D.1.5: %s\n", FDT[fd]->name);
         if (touch(FDT[fd]->name) < 0) {
             perror("f_write - Error creating file using touch");
             return -1;
         }
         // Copy str into data
-        printf("D.2\n");
         strncpy(data, str, n);
     }
-    printf("E");
     // Write data to file
-    entry = get_entry_from_root(FDT[fd]->name);
+    entry = get_entry_from_root(FDT[fd]->name, true);
     if (!entry) {
         perror("f_write - Error finding file entry before append");
         return -1;
     }
-    printf("F");
+    // Get first block and set it if it hasn't been set
     append_to_penn_fat(data, entry->firstBlock);
     FDT[fd]->offset += n; // increment offset by n
     // free(data);
@@ -939,7 +947,7 @@ int f_unlink(const char *fname) {
     }
 
     // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_root(fname);
+    DirectoryEntry* entry = get_entry_from_root(fname, true);
     if (!entry) {
         perror("f_unlink - Error: source file does not have a directory entry");
         return -1;
