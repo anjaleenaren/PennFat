@@ -198,9 +198,10 @@ void strcat_data(char* data, int start_index);
  * @param filename Name of the file to get the entry of.
  * @param update_first_block Flag to indicate if we should update the first block of the entry
  *  (set to true whenever you are writing)
+ * @param rename_to Name to rename the file to (NULL if no rename)
  * @return Directory entry of the file.
  */
-DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_block);
+DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_block, char* rename_to);
 
 /**
  * Adds a directory entry to the root directory.
