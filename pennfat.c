@@ -8,6 +8,18 @@
 #include "pennfat.h"
 
 #define MAX_FAT_ENTRIES 65534 // Maximum for FAT16
+DirectoryEntry* ROOT = NULL;
+FDTEntry** FDT = NULL;
+int BLOCKS_IN_FAT = 0;
+int BLOCK_SIZE = 0;
+int FAT_SIZE = 0;
+int NUM_FAT_ENTRIES = 0; 
+int TABLE_REGION_SIZE = 0;
+int DATA_REGION_SIZE = 0;
+uint16_t *FAT_TABLE = 0;
+uint16_t *FAT_DATA = 0;
+char* FS_NAME = NULL;
+
 
 void mkfs(char *fs_name, int blocks_in_fat, int block_size_config) {
     BLOCKS_IN_FAT = blocks_in_fat;
@@ -427,7 +439,7 @@ int mv(const char *source, const char *dest) {
     // TODO: add function to validate name
 
     // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_root(source, false, dest);
+    DirectoryEntry* entry = get_entry_from_root(source, false, (char*) dest);
     if (!entry) {
         perror("Error: source file does not exist");
         return -1;

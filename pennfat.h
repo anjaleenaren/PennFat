@@ -6,10 +6,10 @@
 #define MAX_FILENAME_LENGTH 32
 #define MAX_FILES 256 // Adjust as necessary for your file system
 
-int BLOCKS_IN_FAT, BLOCK_SIZE, FAT_SIZE, NUM_FAT_ENTRIES, TABLE_REGION_SIZE, DATA_REGION_SIZE;
-uint16_t *FAT_TABLE;
-uint16_t *FAT_DATA;
-char* FS_NAME;
+extern int BLOCKS_IN_FAT, BLOCK_SIZE, FAT_SIZE, NUM_FAT_ENTRIES, TABLE_REGION_SIZE, DATA_REGION_SIZE;
+extern uint16_t *FAT_TABLE;
+extern uint16_t *FAT_DATA;
+extern char* FS_NAME;
 // uint16_t *FAT_DATA;
 
 // File Descriptor Table
@@ -18,7 +18,7 @@ typedef struct {
     int mode; // mode file is opened in
     int offset; // offset of file pointer
 } FDTEntry;
-FDTEntry** FDT;
+extern FDTEntry** FDT;
 
 // Directory entry structure
 typedef struct {
@@ -38,7 +38,7 @@ typedef struct {
     char reserved[16];              // reserved for future use or extra features
 } DirectoryEntry;
 
-DirectoryEntry* ROOT;
+extern DirectoryEntry* ROOT;
 
 // File modes
 #define F_WRITE  1 // Write mode
