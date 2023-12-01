@@ -44,11 +44,11 @@ int main(int argc, char *argv[]) {
     printf("\nwrite: %d\n", f_write(fd, "Hello world!\n", 5));
     int fd1 = f_open("other.txt", F_WRITE);
     printf("\nwrite: %d\n", f_write(fd1, "Hello world OTHER!\n", 50));
-    //print fd
+    // print fd
     printf("fd1: %d\n", fd1);
     // f_write(fd, "Hello world!\n", 25);
     f_close(fd1);
-    f_close(fd);
+    f_close(fd);    
     mv("test.txt", "new.txt");
     unmount();
 

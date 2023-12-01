@@ -168,7 +168,7 @@ int* get_fat_chain(int start_index) {
 }
 
 void strcat_data(char* data, int start_index) {
-    int fs_fd = open(FS_NAME, O_RDONLY);
+    int fs_fd = open(FS_NAME, O_RDWR);
     int start_block = FAT_TABLE[start_index];
     int next_block = start_block;
     while (next_block != 0xFFFF && next_block != 0) {
@@ -215,7 +215,7 @@ int delete_from_penn_fat(const char *filename) {
 DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_block, char* rename_to) {
     int start_block = 1;
     int next_block = start_block;
-    int fs_fd = open(FS_NAME, O_RDONLY);
+    int fs_fd = open(FS_NAME, O_RDWR);
     // Iterate through all the root blocks
 
     int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
@@ -591,7 +591,7 @@ int cp_from_h(const char *source, const char *dest) {
     // copy from host file
 
     // open host file to read
-    int h_fd = open(source, O_RDONLY);
+    int h_fd = open(source, O_RDWR);
     if (h_fd == -1) {
         perror("Error opening file");
         exit(1);
