@@ -3,6 +3,7 @@
 minfs
 maxfs
 pennfat
-*.o
 main
 test_mkfs
+pennfat.o
+main.o
