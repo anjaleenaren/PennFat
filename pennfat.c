@@ -455,18 +455,6 @@ int touch(const char *filename) {
     return 0;
 }
 
-int mv(const char *source, const char *dest) {
-    // TODO: add function to validate name
-
-    // See if file currently exists by iterating through root directory
-    DirectoryEntry* entry = get_entry_from_root(source, false, (char*) dest);
-    if (!entry) {
-        perror("Error: source file does not exist");
-        return -1;
-    }
-    return 0;
-}
-
 int rm(const char *filename) {
     // See if file currently exists by iterating through root directory
     DirectoryEntry* entry = get_entry_from_root(filename, false, NULL);
@@ -485,6 +473,23 @@ int rm(const char *filename) {
 
     // Delete entry from root directory
     delete_entry_from_root(filename);
+    return 0;
+}
+
+int mv(const char *source, const char *dest) {
+    // TODO: add function to validate name
+
+    // See if file currently exists by iterating through root directory
+    DirectoryEntry* entry = get_entry_from_root(source, false, NULL);
+    if (!entry) {
+        perror("Error: source file does not exist");
+        return -1;
+    }
+    // delete dest file
+    rm(dest);
+    // rename
+    entry = get_entry_from_root(source, false, (char*) dest);
+
     return 0;
 }
 
