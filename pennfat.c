@@ -16,6 +16,7 @@ int FAT_SIZE = 0;
 int NUM_FAT_ENTRIES = 0; 
 int TABLE_REGION_SIZE = 0;
 int DATA_REGION_SIZE = 0;
+int BLOCK_SIZE_CONFIG = 0;
 uint16_t *FAT_TABLE = 0;
 uint16_t *FAT_DATA = 0;
 char* FS_NAME = NULL;
@@ -50,6 +51,7 @@ void mkfs(char *fs_name, int blocks_in_fat, int block_size_config) {
     strcpy(FS_NAME, fs_name); // save name
 
     // Calculate FAT and file system size
+    BLOCK_SIZE_CONFIG = block_size_config;
     FAT_SIZE = BLOCK_SIZE * blocks_in_fat;
     NUM_FAT_ENTRIES = (BLOCK_SIZE * blocks_in_fat) / 2;
     TABLE_REGION_SIZE = sizeof(uint16_t) * NUM_FAT_ENTRIES;
@@ -73,15 +75,6 @@ void mkfs(char *fs_name, int blocks_in_fat, int block_size_config) {
         exit(1);
     }
 
-    // Initialize the FAT_TABLE
-    FAT_TABLE[0] = (blocks_in_fat << 8) | block_size_config; //MSB = blocks_in_fat, LSB = block_size_config
-    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
-        FAT_TABLE[i] = 0;
-    }
-
-    // Initialize the root directory
-    FAT_TABLE[1] = 0xFFFF; // First block of root directory is FFFF to signal it's the end
-
     close(fs_fd);
 }
 
@@ -92,6 +85,15 @@ void mount(const char *fs_name) {
         perror("Error opening file system image");
         exit(1);
     }
+
+    // Initialize the FAT_TABLE
+    FAT_TABLE[0] = (BLOCKS_IN_FAT << 8) | BLOCK_SIZE_CONFIG; //MSB = blocks_in_fat, LSB = block_size_config
+    for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
+        FAT_TABLE[i] = 0;
+    }
+
+    // Initialize the root directory
+    FAT_TABLE[1] = 0xFFFF; // First block of root directory is FFFF to signal it's the end
 
     // Mmap for data region
     // FAT_DATA = mmap(NULL, DATA_REGION_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, TABLE_REGION_SIZE);
@@ -145,6 +147,7 @@ void unmount() {
         close(fs_fd);
         exit(1);
     }
+
     // if (munmap(FAT_DATA, DATA_REGION_SIZE) == -1) {
     //     perror("Error unmapping file system - data");
     //     close(fs_fd);
@@ -154,14 +157,20 @@ void unmount() {
     close(fs_fd);
 }
 
+// get chain of blocks for a file given the start index
 int* get_fat_chain(int start_index) {
+    // malloc array for chain
     int* fat_chain = malloc(sizeof(int) * NUM_FAT_ENTRIES);
+    if (fat_chain == NULL) {
+        return NULL;
+    }
     int i = 0;
-    int start_block = FAT_TABLE[start_index];
-    int next_block = start_block;
-    while (next_block != 0XFFFF) {
-        fat_chain[i] = next_block;
-        next_block = FAT_TABLE[next_block];
+    // first block is start_index
+    int block = start_index;
+    // go until END is reached
+    while (block != 0XFFFF) {
+        fat_chain[i] = block;
+        block = FAT_TABLE[block];
         i++;
     }
     return fat_chain;
@@ -228,15 +237,17 @@ DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_bloc
         
         for (int i = 0; i < num_entries; i++) {
             DirectoryEntry* read_struct = malloc(sizeof(DirectoryEntry));
-            read(fs_fd, read_struct, BLOCK_SIZE);
+            read(fs_fd, read_struct, sizeof(DirectoryEntry));
             // fread(&read_struct, sizeof(read_struct), 1, file_ptr);
+
+            // if wanted file has been found
             if (read_struct && strcmp(read_struct->name, filename) == 0) {
                 if (update_first_block) {
                     if (read_struct->firstBlock == (uint16_t) -1) {
                         read_struct->firstBlock = find_first_free_block();
                         read_struct->mtime = time(NULL);
                         FAT_TABLE[read_struct->firstBlock] = 0XFFFF;
-                        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)), SEEK_SET);
+                        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)) + (i * sizeof(DirectoryEntry)), SEEK_SET);
                         write(fs_fd, read_struct, sizeof(DirectoryEntry));
                     }
                 }
@@ -245,13 +256,14 @@ DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_bloc
                     strcpy(read_struct->name, rename_to);
                     printf("New name is: %s\n", read_struct->name);
                     read_struct->mtime = time(NULL);
-                    lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)), SEEK_SET);
+                    lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)) + (i * sizeof(DirectoryEntry)), SEEK_SET);
                     write(fs_fd, read_struct, sizeof(DirectoryEntry));
                 }
-                free(read_struct);
+                // free(read_struct);
+                close(fs_fd);
                 return read_struct;
             }
-            free(read_struct);
+            // free(read_struct);
         }
 
         // int max_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
@@ -276,7 +288,6 @@ DirectoryEntry* delete_entry_from_root(const char *filename) {
     int start_block = 1;
     int next_block = start_block;
     int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-    int found = 0;
     int fs_fd = open(FS_NAME, O_RDWR);
 
     // Iterate through all the root blocks
@@ -287,23 +298,27 @@ DirectoryEntry* delete_entry_from_root(const char *filename) {
         for (int i = 0; i < num_entries; i++) {
             DirectoryEntry* read_struct = malloc(sizeof(DirectoryEntry));
             // fread(&read_struct, sizeof(read_struct), 1, file_ptr);
-            read(fs_fd, read_struct, BLOCK_SIZE);
+            read(fs_fd, read_struct, sizeof(DirectoryEntry));
             if (read_struct && strcmp(read_struct->name, filename) == 0) {
                 // overwrite with spaces
-                // lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)), SEEK_SET);
-                for (long long i = 0; i < sizeof(DirectoryEntry); ++i) {
-                    write(fs_fd, " ", 1);
-                    found = 1;
-                }
 
-                free(read_struct);
-                break;
+                // make name empty string
+                memset(read_struct->name, 0, sizeof(read_struct->name));
+                lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)) + (i * sizeof(DirectoryEntry)), SEEK_SET);
+                write(fs_fd, read_struct, sizeof(DirectoryEntry));
+
+                // lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)), SEEK_SET);
+                // char blankSpace[sizeof(DirectoryEntry)];
+                // memset(blankSpace, ' ', sizeof(DirectoryEntry));
+                // write(fs_fd, blankSpace, sizeof(DirectoryEntry));
+                // for (long long i = 0; i < sizeof(DirectoryEntry); ++i) {
+                //     write(fs_fd, " ", 1);
+                // }
+
+                return read_struct;
             }
 
             free(read_struct);
-        }
-        if (found) {
-            break;
         }
 
         // DirectoryEntry** listEntries = FAT_DATA[block_to_check]; 
@@ -331,8 +346,8 @@ int add_entry_to_root(DirectoryEntry* entry) {
     int last_block = start_block;
     int next_block = start_block;
     int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
-    bool found = false;
     int fs_fd = open(FS_NAME, O_RDWR);
+    bool found = false;
 
     // Iterate through all the root blocks until we find final one
     while (next_block != 0XFFFF) {
@@ -347,18 +362,23 @@ int add_entry_to_root(DirectoryEntry* entry) {
 
     for (int i = 0; i < num_entries; i++) {
         // Go through this DIRECTORY-BLOCK to find the first empty file space
+        // char buffer[sizeof(DirectoryEntry)];
         DirectoryEntry* read_struct = malloc(sizeof(DirectoryEntry));
+        // read(fs_fd, buffer, sizeof(DirectoryEntry))
+        // if (memcmp(buffer, " ", sizeof(DirectoryEntry)) == 0) { 
+            
+        // }
         if (read_struct == NULL) {
             perror("Error allocating memory for read_struct in add_entry_to_root");
             break;
         }
 
-        read(fs_fd, read_struct, BLOCK_SIZE); //, 1, fs_fd);
+        read(fs_fd, read_struct, sizeof(DirectoryEntry)); //, 1, fs_fd);
         printf("%d read_struct: %s\n", i, read_struct->name);
         // check if name is empty
         if (strcmp(read_struct->name, "") == 0) {
             // empty space found
-            lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)), SEEK_SET); 
+            lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check + i - 1)) + (i * sizeof(DirectoryEntry)), SEEK_SET); 
             write(fs_fd, entry, sizeof(DirectoryEntry));//, 1, fs_fd);
             found = true;
             printf("%d read_struct: %s\n", i, read_struct->name);
@@ -423,7 +443,7 @@ int touch(const char *filename) {
     entry->firstBlock = -1; // firstBlock is undefined (null) when size = 0
     entry->type = 1; // TODO: is how do we set type
     entry->perm = 7; // TODO: is how do we set perm
-    entry->mtime = time(NULL); // set time to now TODO: is this correct funciton call?
+    entry->mtime = time(NULL); // set time to now TODO: is this correct function call?
 
     // Save pointer at the end of root entries block
     if (add_entry_to_root(entry) == -1) {
