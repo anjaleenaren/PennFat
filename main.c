@@ -43,14 +43,19 @@ int main(int argc, char *argv[]) {
     printf("fd: %d\n", fd);
     printf("\nwrite: %d\n", f_write(fd, "Hello world!\n", 5));
     int fd1 = f_open("other.txt", F_WRITE);
-    printf("\nwrite: %d\n", f_write(fd1, "Hello world OTHER!\n", 50));
-    // print fd
     printf("fd1: %d\n", fd1);
-    // f_write(fd, "Hello world!\n", 25);
+    printf("\nwrite: %d\n", f_write(fd1, "Hello world OTHER!\n", 50));
+    f_write(fd, "Hello world!\n", 25);
     f_close(fd1);
     f_close(fd);    
     mv("test.txt", "new.txt");
-    unmount();
+    f_ls(NULL);
+    printf("REMOVING\n");
+    rm("new.txt");
+    rm("other.txt");
+    f_ls(NULL);
+    rm("new.txt");
+    // unmount();
 
     return 0;
 }
