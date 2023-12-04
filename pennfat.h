@@ -68,7 +68,7 @@ void mount(const char *fs_name);
 /**
  * Unmounts the currently mounted PennFAT filesystem.
  */
-void unmount();
+void umount();
 
 /**
  * Creates a file if it does not exist, or updates its timestamp to the current system time.
@@ -184,14 +184,14 @@ void f_chmod();
  * @param start_index Index in fat_table to begin search.
  * @return array of all the block numbers in the FAT chain of a file. Need to free.
  */
-int* get_fat_chain(int start_index);
+// int* get_fat_chain(int start_index);
 
 /**
  * Gets the data (stored as string) from a file and concatante it to data.
  * @param data String to concatenate to.
  * @param start_index Index in fat_table to begin search.
  */
-void strcat_data(char* data, int start_index);
+// void strcat_data(char* data, int start_index);
 
 /**
  * Gets the directory entry of a file from its name.
@@ -201,22 +201,22 @@ void strcat_data(char* data, int start_index);
  * @param rename_to Name to rename the file to (NULL if no rename)
  * @return Directory entry of the file.
  */
-DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_block, char* rename_to);
+// DirectoryEntry* get_entry_from_root(const char *filename, bool update_first_block, char* rename_to);
 
 /**
  * Adds a directory entry to the root directory.
  * @param entry Directory entry to add.
  * @return 0 on success, negative on error.
  */
-int add_entry_to_root(DirectoryEntry* entry);
+// int add_entry_to_root(DirectoryEntry* entry);
 
-DirectoryEntry* delete_entry_from_root(const char *filename);
+// DirectoryEntry* delete_entry_from_root(const char *filename);
 
 /**
  * Finds first free block that we can use. (Search fat table to find first 0)
  * @return 0 on success, negative on error.
  */
-int find_first_free_block();
+// int find_first_free_block();
 
 /**
  * Deletes a file from PennFat Table.
@@ -224,7 +224,7 @@ int find_first_free_block();
  * @param filename Name of the file to delete.
  * @return 0 on success, negative on error.
  */
-int delete_from_penn_fat(const char *filename);
+// int delete_from_penn_fat(const char *filename);
 
 /**
  * Appends to a file in PennFat Table that starts at block_no (needs to have a DirectoryEntry already).
@@ -233,10 +233,4 @@ int delete_from_penn_fat(const char *filename);
  * @param n max number of bytes to append (will be ignored if greater than block size)
  * @return 0 on success, negative on error.
  */
-int append_to_penn_fat(char* data, int block_no, int n);
-
-int cp_from_h(const char *source, const char *dest);
-
-int cp_helper(const char *source, const char *dest);
-
-int cp_to_h(const char *source, const char *dest);
+// int append_to_penn_fat(char* data, int block_no, int n);
