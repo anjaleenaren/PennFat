@@ -127,6 +127,7 @@ int main() {
 
 
         if (strcmp(token, "exit") == 0) {
+            umount();
             break;
         } else if (strcmp(token, "mkfs") == 0) {
             char *fs_name = strtok(NULL, " ");
@@ -156,13 +157,18 @@ int main() {
             while ((token = strtok(NULL, " ")) != NULL) {
                 argv[argc++] = token;
             }
-            
-            if (strcmp(argv[0], "-w") == 0) {
+
+            if (argc == 0) {
+                continue;
+            } else if (strcmp(argv[0], "-w") == 0) {
                 // no input files, write mode
                 cat(NULL, 0, argv[1], 0);
             } else if (strcmp(argv[0], "-a") == 0) {
                 // no input, append mode
                 cat(NULL, 0, argv[1], 1);
+            } else if (argc == 1) {
+                // input, std out
+                cat(argv, argc, NULL, 0);
             } else if (strcmp(argv[argc-2], "-w") == 0) {
                 // input, output, write
                 cat(argv, argc-2, argv[argc-1], 0);
@@ -175,6 +181,7 @@ int main() {
             }
 
         } else if (strcmp(token, "cp") == 0) {
+            write(1, "cp\n", sizeof(char) * strlen("cp\n"));
             char * arg1 = strtok(NULL, " ");
             char * arg2 = strtok(NULL, " ");
             char * arg3 = strtok(NULL, " ");
@@ -182,8 +189,11 @@ int main() {
             if (arg3 == NULL) {
                 cp(arg1, arg2, 0, 0);
             } else if (strcmp(arg1, "-h") == 0) {
+                // source in host
                 cp(arg2, arg3, 1, 0);
             } else if (strcmp(arg2, "-h") == 0) {
+                // dest in host
+                write(1, "dest host\n", sizeof(char) * strlen("dest host\n"));
                 cp(arg1, arg3, 0, 1);
             }
         } else if (strcmp(token, "ls") == 0) {
