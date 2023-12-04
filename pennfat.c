@@ -46,7 +46,7 @@ void mkfs(char *fs_name, int blocks_in_fat, int block_size_config) {
             BLOCK_SIZE = 4096;
             break;
     }
-    FS_NAME = malloc(sizeof(char) * strlen(fs_name));
+    FS_NAME = malloc(sizeof(char) * (strlen(fs_name)+1));
     strcpy(FS_NAME, fs_name); // save name
 
     // Calculate FAT and file system size
