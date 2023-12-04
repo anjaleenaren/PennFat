@@ -181,7 +181,7 @@ int main() {
             }
 
         } else if (strcmp(token, "cp") == 0) {
-            write(1, "cp\n", sizeof(char) * strlen("cp\n"));
+            // write(1, "cp\n", sizeof(char) * strlen("cp\n"));
             char * arg1 = strtok(NULL, " ");
             char * arg2 = strtok(NULL, " ");
             char * arg3 = strtok(NULL, " ");

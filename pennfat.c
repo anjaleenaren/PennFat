@@ -271,7 +271,7 @@ int strcat_data(char* data, int start_index) {
     while (next_block != 0xFFFF && next_block != 0) {
         char* cur_data = calloc(1, sizeof(char)*BLOCK_SIZE);
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (next_block - 1)), SEEK_SET);
-        printf("%i\n", TABLE_REGION_SIZE + (BLOCK_SIZE * (next_block - 1)));
+        // printf("%i\n", TABLE_REGION_SIZE + (BLOCK_SIZE * (next_block - 1)));
         chars_read += read(fs_fd, cur_data, sizeof(char)*BLOCK_SIZE);
         // write(1, "data is\n", sizeof(char)*strlen("data is\n"));
         // write(1, cur_data, sizeof(char)*strlen(cur_data));
@@ -720,8 +720,6 @@ int cp_helper(const char *source, const char *dest) {
     int* chain = get_fat_chain(entry->firstBlock);
     int w_fd = f_open((char *) dest, F_WRITE);
     int chars = entry->size;
-    d_entry->size = chars;
-    printf("CHARS %i", chars);
     for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
         if (!chain[i]) {
             break;
@@ -759,6 +757,8 @@ int cp_helper(const char *source, const char *dest) {
     }
     f_close(w_fd);
     // write(1, "writing to root\n", sizeof(char) * strlen("writing to root\n"));
+    d_entry->size = entry->size;
+    printf("CHARS %i\n", d_entry->size);
     write_entry_to_root(d_entry);
     return 0;
 }
@@ -791,8 +791,8 @@ int cp_from_h(const char *source, const char *dest) {
     // int i = find_first_free_block();
     // append_to_penn_fat(txt, i, BLOCK_SIZE);
     f_close(w_fd);
-    entry->size = strlen(txt);
-    write_entry_to_root(entry);
+    // entry->size = strlen(txt);
+    // write_entry_to_root(entry);
     return 0;
 }
 
@@ -961,10 +961,31 @@ void f_ls(const char *filename) {
             // }
             // printf("%s", read_struct->name);
             // if (strcmp(read_struct->name, "") != 0) {
-            if (read_struct->name[0] != 0 && read_struct->name[0] != '\0') {
-                printf("%hu %hhu %u %lld %s\n", read_struct->firstBlock, read_struct->perm, 
-                read_struct->size, (long long) read_struct->mtime, read_struct->name);
+            struct tm *localTime = localtime(&read_struct->mtime);
+            char formattedTime[50];
+            // strftime(formattedTime, sizeof(formattedTime), "%B %d %H:%M", read_struct->mtime);
+            strftime(formattedTime, sizeof(formattedTime), "%b %d %H:%M", localTime);
+
+            // perm string
+            char* perm = NULL;
+            if (read_struct->perm == 0) {
+                perm = "---";
+            } else if (read_struct->perm == 2) {
+                perm = "--w";
+            } else if (read_struct->perm == 4) {
+                perm = "-r-";
+            } else if (read_struct->perm == 5) {
+                perm = "xr-";
+            } else if (read_struct->perm == 6) {
+                perm = "-rw";
+            } else if (read_struct->perm == 7) {
+                perm = "xrw";
             }
+            if (read_struct->name[0] != 0 && read_struct->name[0] != '\0') {
+                printf("%hu %s %lu %s %s\n", read_struct->firstBlock, perm, 
+                sizeof(char) * read_struct->size, formattedTime, read_struct->name);
+            }
+            // (long long) read_struct->mtime
         }
     }
     free(root_chain);
@@ -1183,7 +1204,7 @@ int f_write(int fd, const char *str, int n) {
     // write(STDOUT_FILENO, "got entry\n", sizeof(char) * strlen("got entry\n"));
     // Get first block and set it if it hasn't been set
     int chars_added = append_to_penn_fat(data, entry->firstBlock, n);
-    write(STDOUT_FILENO, "chars added\n", sizeof(char) * strlen("chars added\n"));
+    // write(STDOUT_FILENO, "chars added\n", sizeof(char) * strlen("chars added\n"));
     if (chars_added < 0) {
         perror("f_write - Error appending to penn fat");
         return -1;
