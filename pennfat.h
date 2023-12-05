@@ -176,7 +176,13 @@ int f_lseek(int fd, int offset, int whence);
  */
 void f_ls(const char *filename);
 
-void f_chmod();
+/**
+ * Changes the permissions of a file.
+ * @param filename Name of the file to change permissions.
+ * @param new_perm New permissions for the file.
+ * @return 0 on success, negative on error.
+ */
+int chmod(const char *fname, uint8_t new_perm);
 
 // Helper functions
 /**

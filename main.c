@@ -108,23 +108,6 @@ int main() {
         if (token == NULL) {
             continue;  // Empty line
         }
-        // write(1, "111\n", sizeof(char) * strlen("111\n"));
-        // // Parse the input
-        // int count = sscanf(input, "%s", command);
-        // char args[60][60]; // TODO: assumes max size 60 each, can be changed later to terminal code with malloc
-        // count = 0;
-        // token = strtok(input, " \n");
-        // while (token != NULL && count < 50) {
-        //     strcpy(args[count++], token);
-        //     token = strtok(NULL, " \n");
-        // }
-        // // these args have to be null terminated pls. tok should do this, keep in mind with terminal
-        // strcpy(command, args[0]);
-        // strcpy(arg1, args[1]);
-        // strcpy(arg2, args[2]);
-        // strcpy(arg3, args[3]);
-        // Process commands
-
 
         if (strcmp(token, "exit") == 0) {
             if (FS_NAME != NULL) {
@@ -224,6 +207,20 @@ int main() {
             }
             // write(1, "156\n", sizeof(char) * strlen("156\n"));
             f_ls(NULL);
+        } else if (strcmp(token, "chmod") == 0) {
+            if (FS_NAME == NULL) {
+                continue;
+            }
+            char *filename = strtok(NULL, " ");
+            char *perm_str = strtok(NULL, " ");
+            if (filename == NULL || perm_str == NULL) {
+                write(STDOUT_FILENO, "Usage: chmod <filename> <permissions>\n", strlen("Usage: chmod <filename> <permissions>\n"));
+                continue;
+            }
+            uint8_t permissions = (uint8_t)strtol(perm_str, NULL, 8);
+            if (chmod(filename, permissions) < 0) {
+                perror("chmod failed");
+            }
         } else {
             continue;
         }

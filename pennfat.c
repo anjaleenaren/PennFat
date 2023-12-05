@@ -701,6 +701,7 @@ char* read_file_to_string(int fd) {
     }
     // Read the entire file content into the buffer
     ssize_t bytes_read = read(fd, buffer, file_size);
+    printf("BYTES READ %i\n", bytes_read);
     if (bytes_read == -1) {
         perror("Error reading file content");
         free(buffer);
@@ -1060,7 +1061,7 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
     // Step 2: Output data
     if (output_file) {
         // Write to file
-        DirectoryEntry* entry = get_entry_from_root(output_file, true, NULL);
+        DirectoryEntry* entry = get_entry_from_root(output_file, true,   NULL);
         if (append) {
             if (!entry) {
                 // Create file if it does not exist
@@ -1324,5 +1325,18 @@ int f_unlink(const char *fname) {
 
     // Delete file from fat table and root directory
     delete_from_penn_fat(fname);
+    return 0;
+}
+
+int chmod(const char *fname, uint8_t new_perm) {
+    // See if file currently exists by iterating through root directory
+    DirectoryEntry* entry = get_entry_from_root(fname, true, NULL);
+    if (!entry) {
+        perror("chmod - Error: source file does not have a directory entry");
+        return -1;
+    }
+    entry->perm = new_perm;
+    entry->mtime = time(NULL);
+    msync(entry, sizeof(DirectoryEntry), MS_SYNC);
     return 0;
 }
