@@ -127,7 +127,9 @@ int main() {
 
 
         if (strcmp(token, "exit") == 0) {
-            umount();
+            if (FS_NAME != NULL) {
+                umount();
+            }
             break;
         } else if (strcmp(token, "mkfs") == 0) {
             char *fs_name = strtok(NULL, " ");
@@ -138,20 +140,35 @@ int main() {
             char *fs_name = strtok(NULL, " ");
             mount(fs_name);
         } else if (strcmp(token, "umount") == 0) {
+            if (FS_NAME == NULL) {
+                continue;
+            }
             umount();
         } else if (strcmp(token, "touch") == 0) {
+            if (FS_NAME == NULL) {
+                continue;
+            }
             while ((token = strtok(NULL, " ")) != NULL) {
                 touch(token);
             }
         } else if (strcmp(token, "mv") == 0) {
+            if (FS_NAME == NULL) {
+                continue;
+            }
             char *source = strtok(NULL, " ");
             char *dest = strtok(NULL, " ");
             mv(source, dest);
         } else if (strcmp(token, "rm") == 0) {
+            if (FS_NAME == NULL) {
+                continue;
+            }
             while ((token = strtok(NULL, " ")) != NULL) {
                 rm(token);
             }
         } else if (strcmp(token, "cat") == 0) {
+            if (FS_NAME == NULL) {
+                continue;
+            }
             int argc = 0;
             char *argv[1024];
             while ((token = strtok(NULL, " ")) != NULL) {
@@ -181,6 +198,9 @@ int main() {
             }
 
         } else if (strcmp(token, "cp") == 0) {
+            if (FS_NAME == NULL) {
+                continue;
+            }
             // write(1, "cp\n", sizeof(char) * strlen("cp\n"));
             char * arg1 = strtok(NULL, " ");
             char * arg2 = strtok(NULL, " ");
@@ -193,10 +213,13 @@ int main() {
                 cp(arg2, arg3, 1, 0);
             } else if (strcmp(arg2, "-h") == 0) {
                 // dest in host
-                write(1, "dest host\n", sizeof(char) * strlen("dest host\n"));
+                // write(1, "dest host\n", sizeof(char) * strlen("dest host\n"));
                 cp(arg1, arg3, 0, 1);
             }
         } else if (strcmp(token, "ls") == 0) {
+            if (FS_NAME == NULL) {
+                continue;
+            }
             // write(1, "156\n", sizeof(char) * strlen("156\n"));
             f_ls(NULL);
         } else {
