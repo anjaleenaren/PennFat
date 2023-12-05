@@ -590,47 +590,66 @@ int mv(const char *source, const char *dest) {
 
 // adds data to end of file, given a block number in the file
 int append_to_penn_fat(char* data, int block_no, int n, int size) {
-    // write(1, "APPENDING\n", sizeof(char) * strlen("APPENDING\n"));
-    // Find last block in file (assumes delete_from_penn_fat removes all old blocks)
-    // printf("[DEBUG] append_to_penn_fat - block_no: %d, str: %s\n", block_no, data);
     int last_block = block_no;
     int next_block = last_block;
     int fs_fd = open(FS_NAME, O_RDWR);
+    printf("BLOCK NO %i\n", block_no);
     while (next_block != 0xFFFF && next_block != 0) {
         last_block = next_block;
         next_block = FAT_TABLE[next_block];
     }
+    printf("LAST BLOCK %i\n", last_block);
     // write(1, "Here\n", sizeof(char) * strlen("Here\n"));
     // Iterate through data block by block (each block is block_size bytes)
     char* cur_data_block = malloc(BLOCK_SIZE);
     int offset = 0;
+
     // read what's in last block to determine block text length
+    lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (last_block - 1)), SEEK_SET);
     int bytes_read = 0;
-    if (size > 0) {
-        bytes_read = read(fs_fd, cur_data_block, BLOCK_SIZE);
+    if (size != 0) {
+        read(fs_fd, cur_data_block, BLOCK_SIZE);
+    }
+    if (bytes_read < 0) {
+        perror("append_to_penn_fat - Error reading data block, bytes_read negative");
+        return -1;
+    }
+
+    // If there is space remaing (char_rem > 0) in the last block
+        //      => THEN write char_rem number of bytes to the block
+    int bytes_rem = BLOCK_SIZE - bytes_read;
+    if (bytes_rem > 0) {   
+        int max_size = n < bytes_rem ? n : bytes_rem;
+        if (max_size < strlen(data) && max_size > 0) max_size -=  1; // subtract 1 to make room for for null terminator that strndup will add
+        cur_data_block = strndup(&data[offset], max_size);
+        if (!cur_data_block) {
+            perror("append_to_penn_fat - Error copying data block with strndup");
+            return -1;
+        }
+        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (last_block - 1)) + bytes_read, SEEK_SET);
+        write(fs_fd, cur_data_block, sizeof(char) * strlen(cur_data_block));
+
+        if (strlen(data) > bytes_rem && n > bytes_rem) {
+            // If we stil have data left to write then set offset and continue with rest of program
+            offset = bytes_rem;
+        } else {
+            // Otherwise we are done and can return
+            free(cur_data_block);
+            write(fs_fd, "\0", sizeof(char));
+            return bytes_rem;
+        }
     }
     
-    // fill up current block
-    int char_rem = BLOCK_SIZE - bytes_read;
-    lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (last_block - 1)) + bytes_read, SEEK_SET);
-    // if data is less than remaining, write all of it
-
-    write(fs_fd, data, char_rem);
-
-    if (strlen(data) * sizeof(char) > char_rem) {
-        offset = char_rem;
-    } else {
-        return char_rem;
-    }
-
+    
     while (offset < sizeof(char) * strlen(data)) {
         // printf("offset: %i", offset);
         n = n - offset  >= 1 ? n - offset : 0;
         int max_size = n < BLOCK_SIZE ? n : BLOCK_SIZE;
+        if (max_size < strlen(data) && max_size > 0) max_size -=  1; // subtract 1 to make room for for null terminator that strndup will add
         cur_data_block = strndup(&data[offset], max_size);
         // write(1, cur_data_block, sizeof(char) * strlen(cur_data_block));
         if (!cur_data_block) {
-            perror("cat - Error copying data block with strndup");
+            perror("append_to_penn_fat - Error copying data block with strndup");
             return -1;
         }
         offset += sizeof(char) * strlen(cur_data_block);
@@ -642,15 +661,16 @@ int append_to_penn_fat(char* data, int block_no, int n, int size) {
         // Write data to new block
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (new_final_block - 1)), SEEK_SET);
         write(fs_fd, cur_data_block, sizeof(char) * strlen(cur_data_block));
-        free(cur_data_block);
 
         if (n - strlen(cur_data_block) < 1) {
             // Add null terminator and break
             // printf("[DEBUG] append_to_penn_fat - adding null terminator\n");
+            free(cur_data_block);
             write(fs_fd, "\0", sizeof(char));
             return offset;
         }
     }
+    free(cur_data_block);
     // write(1, "while done\n", sizeof(char) * strlen("while done\n"));
     return strlen(data) * sizeof(char);
 }

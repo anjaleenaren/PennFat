@@ -131,6 +131,8 @@ int main() {
                 umount();
             }
             break;
+        // } else if (strcmp(token, "del") == 0) { // take this out later
+        //     delete_from_penn_fat("f1");
         } else if (strcmp(token, "mkfs") == 0) {
             char *fs_name = strtok(NULL, " ");
             int blocks_in_fat = atoi(strtok(NULL, " "));
