@@ -302,17 +302,20 @@ int delete_from_penn_fat(const char *filename) {
         perror("Source file does not exist");
         return 0;
     }
-
+    int fs_fd = open(FS_NAME, O_RDWR);
     // Delete file from fat table if it does exist
     int block = entry->firstBlock;
     while (block != 0xFFFF && block != 0) {
         int next_block = FAT_TABLE[block];
         FAT_TABLE[block] = 0;
         block = next_block;
+        lseek(fs_fd, block * 2, SEEK_SET);
+        write(fs_fd, &FAT_TABLE[block], 2);
     }
 
     // Delete entry from root directory
     delete_entry_from_root(filename);
+    close(fs_fd);
     return 0;
 }
 
