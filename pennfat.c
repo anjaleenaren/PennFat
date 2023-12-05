@@ -608,7 +608,7 @@ int append_to_penn_fat(char* data, int block_no, int n, int size) {
     lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (last_block - 1)), SEEK_SET);
     int bytes_read = 0;
     if (size != 0) {
-        read(fs_fd, cur_data_block, BLOCK_SIZE);
+        bytes_read = read(fs_fd, cur_data_block, BLOCK_SIZE);
     }
     if (bytes_read < 0) {
         perror("append_to_penn_fat - Error reading data block, bytes_read negative");
