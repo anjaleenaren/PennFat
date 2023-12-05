@@ -598,7 +598,7 @@ int append_to_penn_fat(char* data, int block_no, int n, int size) {
         last_block = next_block;
         next_block = FAT_TABLE[next_block];
     }
-    printf("LAST BLOCK %i\n", last_block);
+    // printf("LAST BLOCK %i\n", last_block);
     // write(1, "Here\n", sizeof(char) * strlen("Here\n"));
     // Iterate through data block by block (each block is block_size bytes)
     char* cur_data_block = malloc(BLOCK_SIZE);
@@ -680,7 +680,7 @@ int append_to_penn_fat(char* data, int block_no, int n, int size) {
     return strlen(data) * sizeof(char);
 }
 
-char* read_file_to_string(int fd) {
+char** read_file_to_string(int fd) {
     // Seek to the end of the file to determine its size
     off_t file_size = lseek(fd, 0, SEEK_END);
     if (file_size == -1) {
@@ -701,15 +701,28 @@ char* read_file_to_string(int fd) {
     }
     // Read the entire file content into the buffer
     ssize_t bytes_read = read(fd, buffer, file_size);
-    printf("BYTES READ %i\n", bytes_read);
+    // write(1, "FILE SIZE\n", strlen("FILE SIZE\n"));
+    // printf("%jd\n", file_size);
+    // write(1, &file_size, sizeof(file_size));
     if (bytes_read == -1) {
         perror("Error reading file content");
         free(buffer);
         return NULL;
     }
+    // write(1, "BYTES READ\n", strlen("BYTES READ\n"));
+    // printf("%zd\n", bytes_read);
+    // write(1, &bytes_read, sizeof(bytes_read));
+    
     // Null-terminate the string
     buffer[bytes_read] = '\0';
-    return buffer;
+    // printf("STRLEN %lu", strlen(buffer));
+    // write(1, "BUFFER\n", strlen("BUFFER\n"));
+    // write(1, buffer, file_size + 1);
+    char** array = (char**)malloc(2 * sizeof(char*));
+    array[0] = buffer;
+    array[1] = (char*)malloc(sizeof(int));
+    sprintf(array[1], "%ld", file_size + 1);
+    return array;
 }
 
 
@@ -753,16 +766,29 @@ int cp_helper(const char *source, const char *dest) {
     int* chain = get_fat_chain(entry->firstBlock);
     int w_fd = f_open((char *) dest, F_WRITE);
     int chars = entry->size;
+    int size = 0;
     for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
         if (!chain[i]) {
             break;
         }
 
+        if (chars <= 0) {
+            break;
+        }
+
+        if (chars >= BLOCK_SIZE) {
+            size = BLOCK_SIZE;
+            chars -= BLOCK_SIZE;
+        } else {
+            size = chars;
+            chars = 0;
+        }
+
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (chain[i] - 1)), SEEK_SET);
-        char* txt = malloc(sizeof(char) * BLOCK_SIZE);
-        read(fs_fd, txt, sizeof(char) * BLOCK_SIZE);
+        char* txt = malloc(size);
+        read(fs_fd, txt, size);
         // write to file
-        f_write(w_fd, txt, sizeof(char) * BLOCK_SIZE);
+        f_write(w_fd, txt, size);
 
         // if (chars <= 0) {
         //     break;
@@ -791,7 +817,7 @@ int cp_helper(const char *source, const char *dest) {
     f_close(w_fd);
     // write(1, "writing to root\n", sizeof(char) * strlen("writing to root\n"));
     d_entry->size = entry->size;
-    printf("CHARS %i\n", d_entry->size);
+    // printf("CHARS %i\n", d_entry->size);
     write_entry_to_root(d_entry);
     return 0;
 }
@@ -805,6 +831,7 @@ int cp_from_h(const char *source, const char *dest) {
         perror("Error opening file");
         exit(1);
     }
+    int fs_fd = open(FS_NAME, O_RDWR);
 
     // check if file exists in fat, remove if it does
     DirectoryEntry* entry = get_entry_from_root(dest, true, NULL);
@@ -817,13 +844,55 @@ int cp_from_h(const char *source, const char *dest) {
     // create new file with name
     touch(dest);
     entry = get_entry_from_root(dest, true, NULL);
-    int w_fd = f_open((char *) dest, F_WRITE);
+    // int w_fd = f_open((char *) dest, F_WRITE);
     // TODO: update directory entry with the first block of file
-    char* txt = read_file_to_string(h_fd);
-    f_write(w_fd, txt, sizeof(char) * strlen(txt));
+    char** array = read_file_to_string(h_fd);
+    char* txt = array[0];
+    int size = atoi(array[1]);
+    // write(STDOUT_FILENO, "CP\n", sizeof(char) * strlen("CP\n"));
+    // write(1, txt, size);
+    int rem_size = size;
+    int offset = 0;
+    int rem = 0;
+    int block = entry->firstBlock;
+    while (offset < size) {
+        // if (size == BLOCK_SIZE + 1 && offset == size - 1) {
+        //     break;
+        // }
+
+        // if (size == BLOCK_SIZE + 1) {
+        //     rem = BLOCK_SIZE;
+        // }
+        if (rem_size > BLOCK_SIZE) {
+            rem = BLOCK_SIZE;
+        } else {
+            rem = rem_size;
+        }
+        // printf("VALS %i %i\n", size, rem);
+        // write block sized portion
+        lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block - 1)), SEEK_SET);
+        write(fs_fd, &txt[offset], rem);
+        offset += rem;
+        if (rem == BLOCK_SIZE) {
+            // add new block if needed
+            int temp = find_first_free_block();
+            FAT_TABLE[block] = temp;
+            FAT_TABLE[temp] = 0xFFFF;
+            block = temp;
+        }
+        rem_size -= rem;
+    }
+    entry->size = size;
+    
+    write_entry_to_root(entry);
+
+    // write(STDOUT_FILENO, "CP\n", sizeof(char) * strlen("CP\n"));
+    // write(1, txt, size);
+    // f_write(w_fd, txt, size);
+    // sizeof(char) * strlen(txt)
     // int i = find_first_free_block();
     // append_to_penn_fat(txt, i, BLOCK_SIZE);
-    f_close(w_fd);
+    // f_close(w_fd);
     // entry->size = strlen(txt);
     // write_entry_to_root(entry);
     return 0;
@@ -856,17 +925,30 @@ int cp_to_h(const char *source, const char *dest) {
     // open host file
     int h_fd = open(dest, O_RDWR | O_CREAT, 0666);
     int chars = entry->size;
+    int size = 0;
     // write(1, "host opened\n", sizeof(char) * strlen("host opened\n"));
     for (int i = 0; i < NUM_FAT_ENTRIES; i++) {
         // write(1, chain[i], sizeof(int));
         if (!chain[i] || chain[i] == 0) {
             break;
         }
+        if (chars <= 0) {
+            break;
+        }
+
+        if (chars >= BLOCK_SIZE) {
+            size = BLOCK_SIZE;
+            chars -= BLOCK_SIZE;
+        } else {
+            size = chars;
+            chars = 0;
+        }
+
         // copy block into host file
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (chain[i] - 1)), SEEK_SET);
-        char* txt = malloc(sizeof(char) * BLOCK_SIZE);
-        read(fs_fd, txt, sizeof(char) * BLOCK_SIZE);
-        write(h_fd, txt, sizeof(char) * strlen(txt));
+        char* txt = malloc(size);
+        read(fs_fd, txt, size);
+        write(h_fd, txt, size);
 
         // // copy block into host file
         // char* txt = NULL;
@@ -1194,8 +1276,9 @@ int f_write(int fd, const char *str, int n) {
     }
     // Get directory entry for file and write
     DirectoryEntry* entry = get_entry_from_root(FDT[fd]->name, true, NULL);
-    // printf("ENTRY: %s\n", entry->name);
-    // write(STDOUT_FILENO, "ENTRY\n", sizeof(char) * strlen("ENTRY\n"));
+    // printf("PARAM: %s\n", str);
+    // write(STDOUT_FILENO, "PARAM\n", sizeof(char) * strlen("PARAM\n"));
+    // write(1, str, sizeof(char) * strlen(str));
     char* data = calloc(1, sizeof(char) * BLOCK_SIZE * NUM_FAT_ENTRIES);
     uint32_t stored_size = 0;
     if (FDT[fd]->mode == F_APPEND) {
@@ -1240,8 +1323,11 @@ int f_write(int fd, const char *str, int n) {
         return -1;
     }
     // write(STDOUT_FILENO, "got entry\n", sizeof(char) * strlen("got entry\n"));
-    // Get first block and set it if it hasn't been set
+    // Get first block
     int chars_added = append_to_penn_fat(data, entry->firstBlock, n, entry->size);
+    // printf("DATA %s", data);
+    // write(STDOUT_FILENO, "DATA\n", sizeof(char) * strlen("DATA\n"));
+    // write(1, data, sizeof(char) * strlen(data));
     // write(STDOUT_FILENO, "chars added\n", sizeof(char) * strlen("chars added\n"));
     if (chars_added < 0) {
         perror("f_write - Error appending to penn fat");
