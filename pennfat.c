@@ -174,7 +174,7 @@ void mount(const char *fs_name) {
     
     for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
         // FAT_TABLE[i] = 0;
-        read(fs_fd, FAT_TABLE[i], 2);
+        read(fs_fd, &FAT_TABLE[i], 2);
     }
 
     // Initialize the root directory
@@ -285,7 +285,7 @@ int strcat_data(char* data, int start_index) {
         next_block = FAT_TABLE[next_block];
     }
     // number of chars read
-    return chars_read / sizeof(char);
+    return chars_read;
 }
 
 int find_first_free_block() {
@@ -760,7 +760,7 @@ int cp_helper(const char *source, const char *dest) {
     f_close(w_fd);
     // write(1, "writing to root\n", sizeof(char) * strlen("writing to root\n"));
     d_entry->size = entry->size;
-    printf("CHARS %i\n", d_entry->size);
+    // printf("CHARS %i\n", d_entry->size);
     write_entry_to_root(d_entry);
     return 0;
 }
@@ -984,8 +984,8 @@ void f_ls(const char *filename) {
                 perm = "xrw";
             }
             if (read_struct->name[0] != 0 && read_struct->name[0] != '\0') {
-                printf("%hu %s %lu %s %s\n", read_struct->firstBlock, perm, 
-                sizeof(char) * read_struct->size, formattedTime, read_struct->name);
+                printf("%hu %s %u %s %s\n", read_struct->firstBlock, perm, 
+                read_struct->size, formattedTime, read_struct->name);
             }
             // (long long) read_struct->mtime
         }
@@ -1024,7 +1024,7 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
             perror("Error reading from terminal");
             return -1;
         }
-        chars_added += (num_bytes / sizeof(char));
+        chars_added += num_bytes;
     }
     uint32_t stored_size = 0;
     // Step 2: Output data
@@ -1059,8 +1059,9 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
             }
         }
         entry = get_entry_from_root(output_file, true, NULL); // Update entry value
-        append_to_penn_fat(data, entry->firstBlock, sizeof(char) * chars_added);
+        append_to_penn_fat(data, entry->firstBlock, chars_added);
         entry->size = stored_size + chars_added;
+        printf("ADDED: %u %i\n", stored_size, chars_added);
         write_entry_to_root(entry);
     } else {
         // Write to stdout
@@ -1226,6 +1227,8 @@ int write_entry_to_root(DirectoryEntry* entry) {
     int* root_chain = get_fat_chain(1);
 
     int fs_fd = open(FS_NAME, O_RDWR);
+    // printf("SIZE %i\n", entry->size);
+    // printf("NAME %s\n", entry->name);
 
     // Iterate through all the root blocks
     int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
@@ -1239,17 +1242,22 @@ int write_entry_to_root(DirectoryEntry* entry) {
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)), SEEK_SET);
 
         for (int i = 0; i < num_entries; i++) {
+            // write(1, "ENTRY\n", sizeof(char) * strlen("ENTRY\n"));
             DirectoryEntry* read_struct = calloc(1, sizeof(DirectoryEntry));
             read(fs_fd, read_struct, sizeof(DirectoryEntry));
             // if wanted file has been found
-            if (read_struct && strcmp(read_struct->name, entry->name) == 0) {
+            // printf("struct name %s\n", read_struct->name);
+            if (strcmp(read_struct->name, entry->name) == 0) {
+                // write(1, "FOUND\n", sizeof(char) * strlen("FOUND\n"));
                 lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block_to_check - 1)) + (i * sizeof(DirectoryEntry)), SEEK_SET);
                 write(fs_fd, entry, sizeof(DirectoryEntry));
+                free(read_struct);
+                close(fs_fd);
+                return 0;
             }
-            free(read_struct);
-            return 0;
         }
     }
+    close(fs_fd);
     return 0;
 }
 
