@@ -593,7 +593,7 @@ int append_to_penn_fat(char* data, int block_no, int n, int size) {
     int last_block = block_no;
     int next_block = last_block;
     int fs_fd = open(FS_NAME, O_RDWR);
-    printf("BLOCK NO %i\n", block_no);
+    // printf("BLOCK NO %i\n", block_no);
     while (next_block != 0xFFFF && next_block != 0) {
         last_block = next_block;
         next_block = FAT_TABLE[next_block];
@@ -606,17 +606,21 @@ int append_to_penn_fat(char* data, int block_no, int n, int size) {
 
     // read what's in last block to determine block text length
     lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (last_block - 1)), SEEK_SET);
+    int read_ret = 0;
     int bytes_read = 0;
     if (size != 0) {
-        bytes_read = read(fs_fd, cur_data_block, BLOCK_SIZE);
+        read_ret = read(fs_fd, cur_data_block, BLOCK_SIZE);
+        // printf("LEN OF CUR_DATA AFTER READ %d\n", strlen(cur_data_block));
+        bytes_read = strlen(cur_data_block);
     }
-    if (bytes_read < 0) {
+    if (read_ret < 0) {
         perror("append_to_penn_fat - Error reading data block, bytes_read negative");
         return -1;
     }
 
     // If there is space remaing (char_rem > 0) in the last block
         //      => THEN write char_rem number of bytes to the block
+    
     int bytes_rem = BLOCK_SIZE - bytes_read;
     if (bytes_rem > 0) {   
         int max_size = n < bytes_rem ? n : bytes_rem;
@@ -626,6 +630,7 @@ int append_to_penn_fat(char* data, int block_no, int n, int size) {
             perror("append_to_penn_fat - Error copying data block with strndup");
             return -1;
         }
+        // printf("|CUR DATA BLOCK: %s|\n", cur_data_block);
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (last_block - 1)) + bytes_read, SEEK_SET);
         write(fs_fd, cur_data_block, sizeof(char) * strlen(cur_data_block));
 
@@ -1059,10 +1064,12 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
         if (append) {
             if (!entry) {
                 // Create file if it does not exist
+                // printf(" -a start file create");
                 if (touch(output_file) < 0) {
                     perror("cat - Error creating file using touch");
                     return -1;
                 }
+                // printf(" -a start get entry");
                 entry = get_entry_from_root(output_file, true, NULL);
                 if (!entry) {
                     perror("cat - Error creating file using touch (entry still null)");
@@ -1071,13 +1078,16 @@ int cat(const char **files, int num_files, const char *output_file, int append) 
             }
             stored_size = entry->size;
         } else {
+            // printf(" -w start");
             if (entry) {
                 // Delete old file from penn fat if it exists and recreate it
+                // printf(" -w delete");
                 if (delete_from_penn_fat(output_file) < 0) {
                     perror("cat - Error deleting file cannot write properly, exiting");
                     return -1;
                 }
             }
+            // printf(" -w touch");
             if (touch(output_file) < 0) {
                 perror("cat - Error creating file using touch");
                 return -1;
