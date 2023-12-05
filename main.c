@@ -184,6 +184,7 @@ int main() {
                 cat(NULL, 0, argv[1], 0);
             } else if (strcmp(argv[0], "-a") == 0) {
                 // no input, append mode
+                printf("append\n");
                 cat(NULL, 0, argv[1], 1);
             } else if (argc == 1) {
                 // input, std out
