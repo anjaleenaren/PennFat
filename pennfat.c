@@ -688,7 +688,7 @@ char** read_file_to_string(int fd) {
         return NULL;
     }
     // Allocate a buffer to hold the file content
-    char* buffer = (char*) calloc(1, file_size + 1);  // +1 for null terminator
+    char* buffer = (char*) calloc(1, file_size);  // +1 for null terminator
     if (buffer == NULL) {
         perror("Error allocating memory for file content");
         return NULL;
@@ -714,14 +714,14 @@ char** read_file_to_string(int fd) {
     // write(1, &bytes_read, sizeof(bytes_read));
     
     // Null-terminate the string
-    buffer[bytes_read] = '\0';
+    // buffer[bytes_read] = '\0';
     // printf("STRLEN %lu", strlen(buffer));
     // write(1, "BUFFER\n", strlen("BUFFER\n"));
     // write(1, buffer, file_size + 1);
     char** array = (char**)malloc(2 * sizeof(char*));
     array[0] = buffer;
     array[1] = (char*)malloc(sizeof(int));
-    sprintf(array[1], "%ld", file_size + 1);
+    sprintf(array[1], "%ld", file_size); // +1 if EOF
     return array;
 }
 
