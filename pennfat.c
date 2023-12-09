@@ -176,7 +176,7 @@ void mount(const char *fs_name) {
     }
 
     // Initialize the root directory
-    FAT_TABLE[1] = 0xFFFF; // First block of root directory is FFFF to signal it's the end
+    if (!FAT_TABLE[1]  || FAT_TABLE[1] <= 0x0000) FAT_TABLE[1] = 0xFFFF; // First block of root directory is FFFF to signal it's the end
     
     FS_NAME = malloc(sizeof(char) * strlen(fs_name));
     strcpy(FS_NAME, fs_name); // save name
@@ -1075,9 +1075,13 @@ void f_ls(const char *filename) {
         // position file pointer
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE* (root_chain[i] - 1)), SEEK_SET);
         for (int i = 0; i < num_entries; i++) {
+            // printf("i: %i\n", i);
             DirectoryEntry* read_struct = calloc(1, sizeof(DirectoryEntry));
             // fread(&read_struct, sizeof(read_struct), 1, file_ptr);
-            read(fs_fd, read_struct, sizeof(DirectoryEntry));
+            if (read(fs_fd, read_struct, sizeof(DirectoryEntry)) < 0) {
+                printf("- Cannot read exit \n");
+                break; // stop looping if we cannot read
+            }
             // directory entry was not deleted (non empty name)
             // if (read_struct == NULL) {
             //     printf("NULL found\n");
@@ -1086,6 +1090,10 @@ void f_ls(const char *filename) {
             // printf("%s", read_struct->name);
             // if (strcmp(read_struct->name, "") != 0) {
             struct tm *localTime = localtime(&read_struct->mtime);
+            if (!localTime) {
+                // printf("Error getting local time\n");
+                break;
+            }
             char formattedTime[50];
             // strftime(formattedTime, sizeof(formattedTime), "%B %d %H:%M", read_struct->mtime);
             strftime(formattedTime, sizeof(formattedTime), "%b %d %H:%M", localTime);
