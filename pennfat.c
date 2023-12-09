@@ -288,6 +288,7 @@ int strcat_data(char* data, int start_index) {
 
 int find_first_free_block() {
     for (int i = 1; i < NUM_FAT_ENTRIES; i++) {
+        // printf("block: %i\n", i);
         if (FAT_TABLE[i] == 0) {
             return i;
         }
@@ -873,9 +874,17 @@ int cp_from_h(const char *source, const char *dest) {
         lseek(fs_fd, TABLE_REGION_SIZE + (BLOCK_SIZE * (block - 1)), SEEK_SET);
         write(fs_fd, &txt[offset], rem);
         offset += rem;
-        if (rem == BLOCK_SIZE) {
+        if (offset < size) {
             // add new block if needed
             int temp = find_first_free_block();
+            // printf("temp: %i\n", temp);
+            // printf("num fat entries: %i , block in fat: %i\n", NUM_FAT_ENTRIES, BLOCKS_IN_FAT);
+            if (temp >= NUM_FAT_ENTRIES || temp == -1) {
+                entry->size = offset;
+                write_entry_to_root(entry);
+                perror("No free blocks");
+                return -1;
+            }
             FAT_TABLE[block] = temp;
             FAT_TABLE[temp] = 0xFFFF;
             block = temp;
