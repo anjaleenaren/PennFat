@@ -113,12 +113,12 @@ int cp(const char *source, const char *dest, int s_host, int d_host);
 // int cp(const char *source, const char *dest, int host_to_fs);
 
 
-/**
- * Lists all files in the current directory or details of a specific file.
- * @param filename Name of the file to list, NULL for listing all files.
- * @return 0 on success, negative on error.
- */
-int ls(const char *filename);
+// /**
+//  * Lists all files in the current directory or details of a specific file.
+//  * @param filename Name of the file to list, NULL for listing all files.
+//  * @return 0 on success, negative on error.
+//  */
+// int ls(const char *filename);
 
 /**
  * Opens a file in the filesystem.

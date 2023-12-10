@@ -81,17 +81,6 @@ void mkfs(char *fs_name, int blocks_in_fat, int block_size_config) {
         exit(1);
     }
 
-    // Initialize the file descriptor table (FDT)
-    // FDT = malloc(sizeof(FDTEntry*) * NUM_FAT_ENTRIES);
-
-    // Mmap for FAT table region
-    // FAT_TABLE = mmap(NULL, FAT_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fs_fd, 0);
-    // if (FAT_TABLE == MAP_FAILED) {
-    //     perror("Error mmapping the directory entries");
-    //     close(fs_fd);
-    //     exit(1);
-    // }
-
     // allocate space for fat table
     FAT_TABLE = calloc(1, FAT_SIZE);
 
@@ -1440,6 +1429,6 @@ int chmod(const char *fname, uint8_t new_perm) {
     }
     entry->perm = new_perm;
     entry->mtime = time(NULL);
-    msync(entry, sizeof(DirectoryEntry), MS_SYNC);
+    write_entry_to_root(entry);
     return 0;
 }
